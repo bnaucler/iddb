@@ -14,7 +14,7 @@
 #include <sqlite3.h>
 
 #define VER "0.1A"
-#define DBNAME "vcf.db"
+#define DBNAME "vcfdb.sl3"
 
 #define NALEN 128
 #define ORLEN 128
@@ -39,6 +39,7 @@
 #define ADDRKEY "ADR"
 
 typedef struct card {
+	unsigned int id;
 	char uid[ULEN];
 	char fn[NALEN];
 	char ln[NALEN];
@@ -136,40 +137,53 @@ card *icard(card *ccard, FILE *f) {
 // Create (or reset) database table
 int ctable(sqlite3 *db) {
 
-	// char *sql = calloc(DBCH, sizeof(char));
+	char *sql = calloc(DBCH, sizeof(char));
 	char *err = 0;
+	int dbok = 0;
 
-	char *sql = "CREATE TABLE id(uid, TEXT, fn TEXT);";
+	strncpy(sql, "DROP TABLE IF EXISTS id;"
+			"CREATE TABLE id(id INT, uid TEXT, fn TEXT);", DBCH);
+	dbok = sqlite3_exec(db, sql, 0, 0, &err);
 
-	return sqlite3_exec(db, sql, 0, 0, &err);
+	if(!dbok) {
+		strncpy(sql, "CREATE TABLE index(inum, INT);", DBCH);
+		dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	}
+
+	return dbok;
 }
 
 // Write struct to DB
 int wrdb(sqlite3 *db, card *ccard) {
 
-	char *sql = calloc(DBCH, sizeof(char));
+	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
 
-	snprintf(sql, DBCH, "INSERT INTO id VALUES(%s, %s)",
-			ccard->uid, ccard->fn);
+	printf("uid: %s\n", ccard->uid);
+	printf("fn: %s\n", ccard->fn);
+
+	// Temporary fix
+	ccard->fn[(strlen(ccard->fn) - 1)] = '\0';
+	ccard->uid[(strlen(ccard->uid) - 1)] = '\0';
+
+	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, \'%s\', \'%s\');",
+			ccard->id++, ccard->uid, ccard->fn);
+
+	printf("query: %s\n", sql);
 
 	return sqlite3_exec(db, sql, 0, 0, &err);
 }
 
-// Example callback
+// Example callback (copied from Tutorialspoint)
 static int callback(void *data, int argc, char **argv, char **azColName){
    int i;
 
-	printf("beep\n");
-
 	fprintf(stderr, "%s: ", (const char*)data);
-	for(i=0; i<argc; i++){
+	for(i = 0; i < argc; i++)
 		printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-	}
 	printf("\n");
 	return 0;
 }
-
 
 // Return entry from database
 card *searchdb(sqlite3 *db, card *ccard, char *str) {
@@ -191,6 +205,7 @@ int main(int argc, char *argv[]) {
 	char *cop = calloc(MBCH, sizeof(char));
 
 	sqlite3 *db;
+	// sqlite3_stmt *res;
 
 	int op = 0;
 	int dbok = 0;
@@ -198,7 +213,6 @@ int main(int argc, char *argv[]) {
 	int optc;
 	
 	strncpy(cmd, basename(argv[0]), MBCH);
-
 
 	while((optc = getopt(argc, argv, "a")) != -1) {
 		switch (optc) {
@@ -215,7 +229,7 @@ int main(int argc, char *argv[]) {
 	op = chops(cop);
 
 	dbok = sqlite3_open(DBNAME, &db);
-	// if(dbok) errno = ENOENT;
+	if(dbok) errno = ENOENT;
 	// if(errno) usage(cmd);
 
 	if(op == create) {
@@ -224,8 +238,8 @@ int main(int argc, char *argv[]) {
 			usage(cmd);
 		} else {
 			printf("ok\n");
-			exit(0);
-		}
+				exit(0);
+			}
 	}
 
 	card *ccard = calloc(1, sizeof(card));
@@ -237,10 +251,8 @@ int main(int argc, char *argv[]) {
 			usage(cmd);
 		} else {
 			icard(ccard, f);
-			printf("uid: %s\n", ccard->uid);
-			printf("fn: %s\n", ccard->fn);
-			printf("email 0: %s\n", ccard->em[0]);
-			printf("email 1: %s\n", ccard->em[1]);
+			// printf("email 0: %s\n", ccard->em[0]);
+			// printf("email 1: %s\n", ccard->em[1]);
 			wrdb(db, ccard);
 		}
 	}

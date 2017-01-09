@@ -1,3 +1,4 @@
 vcfdb
-vcf.db
+*.db
+*.sl3
 vcf/*
