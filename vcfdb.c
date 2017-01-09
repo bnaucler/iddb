@@ -38,6 +38,8 @@
 #define FNKEY "FN"
 #define ADDRKEY "ADR"
 
+#define CITEMS 3
+
 typedef struct card {
 	unsigned int id;
 	char uid[ULEN];
@@ -174,30 +176,65 @@ int wrdb(sqlite3 *db, card *ccard) {
 	return sqlite3_exec(db, sql, 0, 0, &err);
 }
 
-// Example callback (copied from Tutorialspoint)
-static int callback(void *data, int argc, char **argv, char **azColName){
-   int i;
+// Rudimentary callback
+// static int callback(void *data, int rnum, char **rval, char **col) {
 
-	fprintf(stderr, "%s: ", (const char*)data);
-	for(i = 0; i < argc; i++)
-		printf("%s = %s\n", azColName[i], argv[i] ? argv[i] : "NULL");
-	printf("\n");
-	return 0;
-}
+// 	unsigned int a = 0;
+
+// 	if(data) fprintf(stderr, "%s: ", data);
+
+// 	for(a = 0; a < rnum; a++)
+// 		printf("%s = %s\n", col[a], rval[a] ? rval[a] : "NULL");
+// 	printf("\n");
+
+// 	return 0;
+// }
 
 // Return entry from database
-card *searchdb(sqlite3 *db, card *ccard, char *str) {
+card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
 
-	char *sql = "SELECT * FROM id";
-	char *err = 0;
-	const char* data = "Callback function called";
+	char *sql = calloc(BBCH, sizeof(char));
+		
+	snprintf(sql, BBCH, "SELECT * FROM id");
 
-	int dbok = sqlite3_exec(db, sql, callback, (void*)data, &err);
+	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	unsigned int a = 0;
 
-	if (dbok) printf("error! %d\n", dbok);
+	if (dbok) printf("error# %d\n", dbok);
 
+	while((dbok = sqlite3_step(stmt)) != SQLITE_DONE) {
+		if(dbok == SQLITE_ROW) {
+			int ccnt = sqlite3_column_count(stmt);
+			for(a = 0; a < ccnt; a++){
+				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
+					strcpy(ccard->fn, (char*)sqlite3_column_text(stmt, a));
+			}
+		}
+	}
+
+	printf("%s\n", ccard->fn);
 	return ccard;
 }
+
+// Marshal array to string
+// char *marsarr(char **arr, int offs) {
+
+// 	int ni = sizeof(arr) / sizeof(arr[0]);
+// 	int ti = 0;
+// 	unsigned int a = 0;
+// 	int pos = 0;
+
+// 	for(a = 0; a < ni; a++) { 
+// 		if(arr[a][0]) ti++;
+// 		break;
+// 	}
+
+// 	// TODO: Fix it
+// 	// char *mstr = calloc((ti * sizeof(arr[0]), sizeof(char));
+// 	char *mstr;
+
+// 	return mstr;
+// }
 
 int main(int argc, char *argv[]) {
 
@@ -205,7 +242,7 @@ int main(int argc, char *argv[]) {
 	char *cop = calloc(MBCH, sizeof(char));
 
 	sqlite3 *db;
-	// sqlite3_stmt *res;
+	sqlite3_stmt *stmt;
 
 	int op = 0;
 	int dbok = 0;
@@ -251,14 +288,12 @@ int main(int argc, char *argv[]) {
 			usage(cmd);
 		} else {
 			icard(ccard, f);
-			// printf("email 0: %s\n", ccard->em[0]);
-			// printf("email 1: %s\n", ccard->em[1]);
 			wrdb(db, ccard);
 		}
 	}
 
 	// if(op == export) ecard();
-	if(op == phone) searchdb(db, ccard, argv[(optind + 1)]);
+	if(op == phone) searchdb(db, ccard, stmt, argv[(optind + 1)]);
 	// if(op == email) searchdb();
 
 	sqlite3_close(db);
