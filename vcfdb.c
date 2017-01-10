@@ -40,6 +40,8 @@
 
 #define CITEMS 3
 
+#define FCHAR '~'
+
 typedef struct card {
 	unsigned int lid;
 	char uid[ULEN];
@@ -97,7 +99,7 @@ int strst(char *str, char *key) {
 	int klen = strlen(key);
 	unsigned int a = 0;
 
-	// Not sure if tolower / ctype is needed
+	// Not sure if tolower is needed 
 	for(a = 0; a < klen; a++) {
 		if(tolower(str[a]) != tolower(key[a])) return 1;
 	}
@@ -110,6 +112,9 @@ char *robj(char *buf, char *key) {
 
 	buf = strtok(buf, ":");
 	buf = strtok(NULL, "\n");
+
+	int p = strlen(buf) - 1;
+	while(!isalnum(buf[p])) buf[p--] = '\0';
 
 	return buf;
 }
@@ -126,9 +131,9 @@ card *icard(card *ccard, FILE *f) {
 			strncpy(ccard->uid, robj(buf, UIDKEY), ULEN);
 		if(!strst(buf, FNKEY))
 			strncpy(ccard->fn, robj(buf, FNKEY), NALEN);
-		if(!strst(buf, EMKEY)) 
+		if(!strst(buf, EMKEY))
 			strncpy(ccard->em[ccard->emnum++], robj(buf, EMKEY), EMLEN);
-		if(!strst(buf, PHKEY)) 
+		if(!strst(buf, PHKEY))
 			strncpy(ccard->ph[ccard->phnum++], robj(buf, PHKEY), PHLEN);
 	}
 
@@ -144,7 +149,7 @@ int ctable(sqlite3 *db) {
 	int dbok = 0;
 
 	strncpy(sql, "DROP TABLE IF EXISTS id;"
-			"CREATE TABLE id(lid INT, uid TEXT, fn TEXT);", DBCH);
+		"CREATE TABLE id(lid INT, uid TEXT, fn TEXT, ph TEXT, em TEXT);", DBCH);
 	dbok = sqlite3_exec(db, sql, 0, 0, &err);
 
 	if(!dbok) {
@@ -156,21 +161,49 @@ int ctable(sqlite3 *db) {
 	return dbok;
 }
 
+// Convert array to string
+char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
+
+	unsigned int a = 0, b = 0, w = 2, ln = 0;
+
+	mstr[0] = rows;
+
+	for(a = 0; a < mstr[0]; a++) {
+		ln = strlen(arr[a]);
+		if(mstr[1] < ln) mstr[1] = ln;
+	}
+
+	for(a = 0; a < mstr[0]; a++) {
+		for(b = 0; b < mstr[1]; b++) {
+			if(arr[a][b]) mstr[w++] = arr[a][b];
+			else mstr[w++] = FCHAR;
+		}
+	}
+
+	printf("rows: %d\n", mstr[0]);
+	printf("cols: %d\n", mstr[1]);
+
+	mstr[w] = '\0';
+	return mstr;
+}
+
 // Write struct to DB
 int wrdb(sqlite3 *db, card *ccard) {
 
 	char *sql = calloc(BBCH, sizeof(char));
+	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
+	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
 	char *err = 0;
 
 	printf("uid: %s\n", ccard->uid);
 	printf("fn: %s\n", ccard->fn);
+	printf("em 0: %s\n", ccard->em[0]);
+	printf("ph 0: %s\n", ccard->ph[0]);
 
-	// Temporary fix
-	ccard->fn[(strlen(ccard->fn) - 1)] = '\0';
-	ccard->uid[(strlen(ccard->uid) - 1)] = '\0';
-
-	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, \'%s\', \'%s\');",
-			ccard->lid++, ccard->uid, ccard->fn);
+	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, '%s', '%s'. '%s', '%s');",
+			ccard->lid++, ccard->uid, ccard->fn,
+			marshal(pbuf, ccard->phnum, PHLEN, ccard->ph),
+			marshal(mbuf, ccard->emnum, EMLEN, ccard->em));
 
 	printf("query: %s\n", sql);
 
@@ -181,7 +214,7 @@ int wrdb(sqlite3 *db, card *ccard) {
 card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
 
 	char *sql = calloc(BBCH, sizeof(char));
-		
+
 	snprintf(sql, BBCH, "SELECT * FROM id");
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
@@ -199,29 +232,11 @@ card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
 		}
 	}
 
-	printf("%s\n", ccard->fn);
+	printf("uid: %s\n", ccard->uid);
+	printf("fn: %s\n", ccard->fn);
+
 	return ccard;
 }
-
-// Marshal array to string
-// char *marsarr(char **arr, int offs) {
-
-// 	int ni = sizeof(arr) / sizeof(arr[0]);
-// 	int ti = 0;
-// 	unsigned int a = 0;
-// 	int pos = 0;
-
-// 	for(a = 0; a < ni; a++) { 
-// 		if(arr[a][0]) ti++;
-// 		break;
-// 	}
-
-// 	// TODO: Fix it
-// 	// char *mstr = calloc((ti * sizeof(arr[0]), sizeof(char));
-// 	char *mstr;
-
-// 	return mstr;
-// }
 
 int main(int argc, char *argv[]) {
 
@@ -235,7 +250,7 @@ int main(int argc, char *argv[]) {
 	int dbok = 0;
 
 	int optc;
-	
+
 	strncpy(cmd, basename(argv[0]), MBCH);
 
 	while((optc = getopt(argc, argv, "a")) != -1) {
@@ -275,7 +290,8 @@ int main(int argc, char *argv[]) {
 			usage(cmd);
 		} else {
 			icard(ccard, f);
-			wrdb(db, ccard);
+			dbok = wrdb(db, ccard);
+			printf("dbok: %d\n", dbok);
 		}
 	}
 
