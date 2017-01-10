@@ -41,7 +41,7 @@
 #define CITEMS 3
 
 typedef struct card {
-	unsigned int id;
+	unsigned int lid;
 	char uid[ULEN];
 	char fn[NALEN];
 	char ln[NALEN];
@@ -144,11 +144,12 @@ int ctable(sqlite3 *db) {
 	int dbok = 0;
 
 	strncpy(sql, "DROP TABLE IF EXISTS id;"
-			"CREATE TABLE id(id INT, uid TEXT, fn TEXT);", DBCH);
+			"CREATE TABLE id(lid INT, uid TEXT, fn TEXT);", DBCH);
 	dbok = sqlite3_exec(db, sql, 0, 0, &err);
 
 	if(!dbok) {
-		strncpy(sql, "CREATE TABLE index(inum, INT);", DBCH);
+		strncpy(sql, "DROP TABLE IF EXISTS ctr;"
+			"CREATE TABLE ctr(num, INT);", DBCH);
 		dbok = sqlite3_exec(db, sql, 0, 0, &err);
 	}
 
@@ -169,26 +170,12 @@ int wrdb(sqlite3 *db, card *ccard) {
 	ccard->uid[(strlen(ccard->uid) - 1)] = '\0';
 
 	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, \'%s\', \'%s\');",
-			ccard->id++, ccard->uid, ccard->fn);
+			ccard->lid++, ccard->uid, ccard->fn);
 
 	printf("query: %s\n", sql);
 
 	return sqlite3_exec(db, sql, 0, 0, &err);
 }
-
-// Rudimentary callback
-// static int callback(void *data, int rnum, char **rval, char **col) {
-
-// 	unsigned int a = 0;
-
-// 	if(data) fprintf(stderr, "%s: ", data);
-
-// 	for(a = 0; a < rnum; a++)
-// 		printf("%s = %s\n", col[a], rval[a] ? rval[a] : "NULL");
-// 	printf("\n");
-
-// 	return 0;
-// }
 
 // Return entry from database
 card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
