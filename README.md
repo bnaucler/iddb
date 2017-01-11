@@ -1,4 +1,4 @@
-# vcfdb v0.1A
+# iddb v0.1A
 An identity database to manage your contacts.
 
 ## Written by

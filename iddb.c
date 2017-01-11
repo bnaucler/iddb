@@ -1,6 +1,6 @@
 /*
  *
- *		vcfdb.c - vCard database
+ *		iddb.c - vCard database
  *
  */
 
@@ -14,7 +14,7 @@
 #include <sqlite3.h>
 
 #define VER "0.1A"
-#define DBNAME "vcfdb.sl3"
+#define DBNAME "iddb.sl3"
 
 #define NALEN 128
 #define ORLEN 128
@@ -46,7 +46,6 @@ typedef struct card {
 	unsigned int lid;
 	char uid[ULEN];
 	char fn[NALEN];
-	char ln[NALEN];
 	char org[ORLEN];
 	char ph[PHNUM][PHLEN];
 	char em[EMNUM][EMLEN];
@@ -161,11 +160,28 @@ int ctable(sqlite3 *db) {
 	return dbok;
 }
 
+// Return marshalled string to array format
+char **unmarshal(char *str, char **arr) {
+
+	char *tmp = calloc(str[1] + 1, sizeof(char));
+	unsigned int a = 0, b = 0, w = 2;
+
+	for(a = 0; a < str[0]; a++) {
+		for(b = 0; b < str[1]; b++) {
+			if(str[w] != FCHAR) tmp[b] = str[w];
+			w++;
+		}
+		if(tmp[0]) strncpy(arr[a], tmp, str[1]);
+		memset(tmp, 0, str[1] + 1);
+	}
+
+	return arr;
+}
+
 // Convert array to string
 char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
 
 	unsigned int a = 0, b = 0, w = 2, ln = 0;
-
 	mstr[0] = rows;
 
 	for(a = 0; a < mstr[0]; a++) {
@@ -180,15 +196,12 @@ char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
 		}
 	}
 
-	printf("rows: %d\n", mstr[0]);
-	printf("cols: %d\n", mstr[1]);
-
 	mstr[w] = '\0';
 	return mstr;
 }
 
 // Write struct to DB
-int wrdb(sqlite3 *db, card *ccard) {
+int wrdb(sqlite3 *db, card *ccard, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
@@ -200,22 +213,50 @@ int wrdb(sqlite3 *db, card *ccard) {
 	printf("em 0: %s\n", ccard->em[0]);
 	printf("ph 0: %s\n", ccard->ph[0]);
 
-	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, '%s', '%s'. '%s', '%s');",
+	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, '%s', '%s', '%s', '%s');",
 			ccard->lid++, ccard->uid, ccard->fn,
 			marshal(pbuf, ccard->phnum, PHLEN, ccard->ph),
 			marshal(mbuf, ccard->emnum, EMLEN, ccard->em));
 
-	printf("query: %s\n", sql);
+	if (verb) printf("Query: %s\n", sql);
 
 	return sqlite3_exec(db, sql, 0, 0, &err);
 }
 
+// Print card to stdout
+void printcard(card *ccard) {
+
+	printf("uid: %s\n", ccard->uid);
+	printf("fn: %s\n", ccard->fn);
+}
+
+// Return 0 if c1 and c2 are identical
+int cmpcard(card *c1, card *c2) {
+
+	unsigned int a = 0;
+
+	if(c1->uid != c2->uid) return 1;
+	if(c1->fn != c2->fn) return 2;
+	if(c1->org != c2->org) return 3;
+	if(c1->phnum != c2->phnum) return 4;
+	if(c1->emnum != c2->emnum) return 5;
+
+	for(a = 0; a < c1->phnum; a++) { if(c1->ph[a] == c2->ph[a]) return 6; }
+	for(a = 0; a < c1->emnum; a++) { if(c1->em[a] == c2->em[a]) return 7; }
+
+	return 0;
+}
+
 // Return entry from database
-card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
+card *searchdb(sqlite3 *db, card *ccard,
+		sqlite3_stmt *stmt, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 
-	snprintf(sql, BBCH, "SELECT * FROM id");
+	if(str == NULL) snprintf(sql, BBCH, "SELECT * FROM id;");
+	else snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
+
+	if (verb) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	unsigned int a = 0;
@@ -226,14 +267,14 @@ card *searchdb(sqlite3 *db, card *ccard, sqlite3_stmt *stmt, char *str) {
 		if(dbok == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
+				if(strcmp("uid", sqlite3_column_name(stmt, a)) == 0)
+					strcpy(ccard->uid, (char*)sqlite3_column_text(stmt, a));
 				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
 					strcpy(ccard->fn, (char*)sqlite3_column_text(stmt, a));
 			}
+			printcard(ccard);
 		}
 	}
-
-	printf("uid: %s\n", ccard->uid);
-	printf("fn: %s\n", ccard->fn);
 
 	return ccard;
 }
@@ -248,13 +289,18 @@ int main(int argc, char *argv[]) {
 
 	int op = 0;
 	int dbok = 0;
+	int verb = 0;
 
 	int optc;
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
-	while((optc = getopt(argc, argv, "a")) != -1) {
+	while((optc = getopt(argc, argv, "v")) != -1) {
 		switch (optc) {
+
+			case 'v':
+				verb++;
+				break;
 
 			default:
 				usage(cmd);
@@ -276,8 +322,8 @@ int main(int argc, char *argv[]) {
 			errno = EEXIST;
 			usage(cmd);
 		} else {
-			printf("ok\n");
-				exit(0);
+			printf("Database %s created successfully\n", DBNAME);
+			return 0;
 			}
 	}
 
@@ -290,13 +336,13 @@ int main(int argc, char *argv[]) {
 			usage(cmd);
 		} else {
 			icard(ccard, f);
-			dbok = wrdb(db, ccard);
+			dbok = wrdb(db, ccard, verb);
 			printf("dbok: %d\n", dbok);
 		}
 	}
 
 	// if(op == export) ecard();
-	if(op == phone) searchdb(db, ccard, stmt, argv[(optind + 1)]);
+	if(op == phone) searchdb(db, ccard, stmt, argv[(optind + 1)], verb);
 	// if(op == email) searchdb();
 
 	sqlite3_close(db);

@@ -1,6 +1,6 @@
 CC = cc
-TARGET = vcfdb
-SOURCE = vcfdb.c
+TARGET = iddb
+SOURCE = iddb.c
 DESTDIR = /usr/bin
 CFLAGS ?= -Wall -g -lsqlite3
 
