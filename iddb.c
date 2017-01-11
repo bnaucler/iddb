@@ -30,7 +30,7 @@ typedef struct card {
 typedef enum op {create, import, export, help, phone, email} op;
 
 // Operations for string comparison
-char vops[5][7] = {"create", "import", "export", "help", "phone", "email"};
+char vops[6][7] = {"create", "import", "export", "help", "phone", "email"};
 
 int usage(char *cmd) {
 
@@ -92,25 +92,25 @@ char *robj(char *buf, char *key) {
 }
 
 // Import card to struct
-card *icard(card *ccard, FILE *f) {
+card *icard(card *cc, FILE *f) {
 
 	char *buf = malloc(MBCH);
-	ccard->phnum = 0;
-	ccard->emnum = 0;
+	cc->phnum = 0;
+	cc->emnum = 0;
 
 	while(fgets(buf, MBCH, f)){
 		if(!strst(buf, UIDKEY))
-			strncpy(ccard->uid, robj(buf, UIDKEY), ULEN);
+			strncpy(cc->uid, robj(buf, UIDKEY), ULEN);
 		if(!strst(buf, FNKEY))
-			strncpy(ccard->fn, robj(buf, FNKEY), NALEN);
+			strncpy(cc->fn, robj(buf, FNKEY), NALEN);
 		if(!strst(buf, EMKEY))
-			strncpy(ccard->em[ccard->emnum++], robj(buf, EMKEY), EMLEN);
+			strncpy(cc->em[cc->emnum++], robj(buf, EMKEY), EMLEN);
 		if(!strst(buf, PHKEY))
-			strncpy(ccard->ph[ccard->phnum++], robj(buf, PHKEY), PHLEN);
+			strncpy(cc->ph[cc->phnum++], robj(buf, PHKEY), PHLEN);
 	}
 
 	free(buf);
-	return ccard;
+	return cc;
 }
 
 // Create (or reset) database table
@@ -174,22 +174,22 @@ char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
 }
 
 // Write struct to DB
-int wrdb(sqlite3 *db, card *ccard, int verb) {
+int wrdb(sqlite3 *db, card *cc, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
 	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
 	char *err = 0;
 
-	printf("uid: %s\n", ccard->uid);
-	printf("fn: %s\n", ccard->fn);
-	printf("em 0: %s\n", ccard->em[0]);
-	printf("ph 0: %s\n", ccard->ph[0]);
+	printf("uid: %s\n", cc->uid);
+	printf("fn: %s\n", cc->fn);
+	printf("em 0: %s\n", cc->em[0]);
+	printf("ph 0: %s\n", cc->ph[0]);
 
 	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, '%s', '%s', '%s', '%s');",
-			ccard->lid++, ccard->uid, ccard->fn,
-			marshal(pbuf, ccard->phnum, PHLEN, ccard->ph),
-			marshal(mbuf, ccard->emnum, EMLEN, ccard->em));
+			cc->lid++, cc->uid, cc->fn,
+			marshal(pbuf, cc->phnum, PHLEN, cc->ph),
+			marshal(mbuf, cc->emnum, EMLEN, cc->em));
 
 	if (verb) printf("Query: %s\n", sql);
 
@@ -197,10 +197,10 @@ int wrdb(sqlite3 *db, card *ccard, int verb) {
 }
 
 // Print card to stdout
-void printcard(card *ccard) {
+void printcard(card *cc) {
 
-	printf("uid: %s\n", ccard->uid);
-	printf("fn: %s\n", ccard->fn);
+	printf("uid: %s\n", cc->uid);
+	printf("fn: %s\n", cc->fn);
 }
 
 // Return 0 if c1 and c2 are identical
@@ -221,7 +221,7 @@ int cmpcard(card *c1, card *c2) {
 }
 
 // Return entry from database
-card *searchdb(sqlite3 *db, card *ccard,
+card *searchdb(sqlite3 *db, card *cc,
 		sqlite3_stmt *stmt, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -241,15 +241,15 @@ card *searchdb(sqlite3 *db, card *ccard,
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
 				if(strcmp("uid", sqlite3_column_name(stmt, a)) == 0)
-					strcpy(ccard->uid, (char*)sqlite3_column_text(stmt, a));
+					strcpy(cc->uid, (char*)sqlite3_column_text(stmt, a));
 				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
-					strcpy(ccard->fn, (char*)sqlite3_column_text(stmt, a));
+					strcpy(cc->fn, (char*)sqlite3_column_text(stmt, a));
 			}
-			printcard(ccard);
+			printcard(cc);
 		}
 	}
 
-	return ccard;
+	return cc;
 }
 
 int main(int argc, char *argv[]) {
@@ -300,7 +300,7 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-	card *ccard = calloc(1, sizeof(card));
+	card *cc = calloc(1, sizeof(card));
 
 	if(op == help) usage(cmd);
 	else if(op == import) {
@@ -309,14 +309,14 @@ int main(int argc, char *argv[]) {
 			errno = ENOENT;
 			usage(cmd);
 		} else {
-			icard(ccard, f);
-			dbok = wrdb(db, ccard, verb);
+			icard(cc, f);
+			dbok = wrdb(db, cc, verb);
 			printf("dbok: %d\n", dbok);
 		}
 	}
 
 	// if(op == export) ecard();
-	if(op == phone) searchdb(db, ccard, stmt, argv[(optind + 1)], verb);
+	if(op == phone) searchdb(db, cc, stmt, argv[(optind + 1)], verb);
 	// if(op == email) searchdb();
 
 	sqlite3_close(db);
