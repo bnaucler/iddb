@@ -121,7 +121,8 @@ int ctable(sqlite3 *db) {
 	int dbok = 0;
 
 	strncpy(sql, "DROP TABLE IF EXISTS id;"
-		"CREATE TABLE id(lid INT, uid TEXT, fn TEXT, ph TEXT, em TEXT);", DBCH);
+		"CREATE TABLE id(lid INT, uid TEXT, fn TEXT,"
+		" org TEXT, ph TEXT, em TEXT);", DBCH);
 	dbok = sqlite3_exec(db, sql, 0, 0, &err);
 
 	if(!dbok) {
@@ -186,8 +187,9 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 	printf("em 0: %s\n", cc->em[0]);
 	printf("ph 0: %s\n", cc->ph[0]);
 
-	snprintf(sql, BBCH, "INSERT INTO id VALUES(%d, '%s', '%s', '%s', '%s');",
-			cc->lid++, cc->uid, cc->fn,
+	snprintf(sql, BBCH, "INSERT INTO id VALUES"
+			"(%d, '%s', '%s', '%s',  '%s', '%s');",
+			cc->lid++, cc->uid, cc->fn, cc->org,
 			marshal(pbuf, cc->phnum, PHLEN, cc->ph),
 			marshal(mbuf, cc->emnum, EMLEN, cc->em));
 
@@ -203,10 +205,10 @@ void printcard(card *cc) {
 
 	if(cc->uid[0]) printf("uid: %s\n", cc->uid);
 	printf("fn: %s\n", cc->fn);
+	if(cc->org[0]) printf("org: %s\n", cc->org);
 
-	for(a = 0; a < cc->emnum; a++) {
-		printf("em %d: %s\n", a, cc->em[a]);
-	}
+	for(a = 0; a < cc->phnum; a++) printf("ph %d: %s\n", a, cc->ph[a]);
+	for(a = 0; a < cc->emnum; a++) printf("em %d: %s\n", a, cc->em[a]);
 }
 
 // Return 0 if c1 and c2 are identical (TODO: implement)
@@ -231,7 +233,7 @@ card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *buf = calloc(BBCH, sizeof(char));
-	char **tarr = calloc(DBCH, sizeof(char));
+	char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
 
 	sqlite3_stmt *stmt;
 
@@ -251,19 +253,29 @@ card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 			for(a = 0; a < ccnt; a++){
 				if(strcmp("uid", sqlite3_column_name(stmt, a)) == 0)
 					strcpy(cc->uid, (char*)sqlite3_column_text(stmt, a));
+
 				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
 					strcpy(cc->fn, (char*)sqlite3_column_text(stmt, a));
 
-				if(strcmp("em", sqlite3_column_name(stmt, a)) == 0) {
-					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
+				if(strcmp("org", sqlite3_column_name(stmt, a)) == 0)
+					strcpy(cc->org, (char*)sqlite3_column_text(stmt, a));
 
+				if(strcmp("ph", sqlite3_column_name(stmt, a)) == 0) {
+					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
 					for(b = 0; b < buf[0]; b++)
 						tarr[b] = calloc(buf[1] + 1, sizeof(char));
-
 					unmarshal(buf, tarr);
+					cc->phnum = buf[0];
+					for(b = 0; b < buf[0]; b++)
+						strncpy(cc->ph[b], tarr[b], buf[1] + 1);
+				}
 
+				if(strcmp("em", sqlite3_column_name(stmt, a)) == 0) {
+					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
+					for(b = 0; b < buf[0]; b++)
+						tarr[b] = calloc(buf[1] + 1, sizeof(char));
+					unmarshal(buf, tarr);
 					cc->emnum = buf[0];
-
 					for(b = 0; b < buf[0]; b++)
 						strncpy(cc->em[b], tarr[b], buf[1] + 1);
 				}
