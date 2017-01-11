@@ -54,10 +54,10 @@ typedef struct card {
 } card;
 
 // Actual operations
-typedef enum op {create, import, export, phone, email} op;
+typedef enum op {create, import, export, help, phone, email} op;
 
 // Operations for string comparison
-char vops[5][7] = {"create", "import", "export", "phone", "email"};
+char vops[5][7] = {"create", "import", "export", "help", "phone", "email"};
 
 int usage(char *cmd) {
 
@@ -66,7 +66,7 @@ int usage(char *cmd) {
 	printf("%s %s - usage:\n", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
 	printf("Possible commands are:\n");
-	printf("c[reate], i[mport], e[xport], p[hone], e[mail], a[ll]\n");
+	printf("c[reate], i[mport], e[xport], h[elp], p[hone], e[mail], a[ll]\n");
 
 	exit(errno);
 }
@@ -329,7 +329,8 @@ int main(int argc, char *argv[]) {
 
 	card *ccard = calloc(1, sizeof(card));
 
-	if(op == import) {
+	if(op == help) usage(cmd);
+	else if(op == import) {
 		FILE *f = fopen(argv[(optind + 1)], "r");
 		if(f == NULL) {
 			errno = ENOENT;
