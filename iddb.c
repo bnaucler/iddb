@@ -1,6 +1,6 @@
 /*
  *
- *		iddb.c - vCard database
+ *		iddb.c - Identity database / VCF parser
  *
  */
 
@@ -71,7 +71,7 @@ int strst(char *str, char *key) {
 	int klen = strlen(key);
 	unsigned int a = 0;
 
-	// Not sure if tolower is needed 
+	// Not sure if tolower is needed
 	for(a = 0; a < klen; a++) {
 		if(tolower(str[a]) != tolower(key[a])) return 1;
 	}
@@ -199,11 +199,17 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 // Print card to stdout
 void printcard(card *cc) {
 
-	printf("uid: %s\n", cc->uid);
+	unsigned int a = 0;
+
+	if(cc->uid[0]) printf("uid: %s\n", cc->uid);
 	printf("fn: %s\n", cc->fn);
+
+	for(a = 0; a < cc->emnum; a++) {
+		printf("em %d: %s\n", a, cc->em[a]);
+	}
 }
 
-// Return 0 if c1 and c2 are identical
+// Return 0 if c1 and c2 are identical (TODO: implement)
 int cmpcard(card *c1, card *c2) {
 
 	unsigned int a = 0;
@@ -221,10 +227,13 @@ int cmpcard(card *c1, card *c2) {
 }
 
 // Return entry from database
-card *searchdb(sqlite3 *db, card *cc,
-		sqlite3_stmt *stmt, char *str, int verb) {
+card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
+	char *buf = calloc(BBCH, sizeof(char));
+	char **tarr = calloc(DBCH, sizeof(char));
+
+	sqlite3_stmt *stmt;
 
 	if(str == NULL) snprintf(sql, BBCH, "SELECT * FROM id;");
 	else snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
@@ -232,7 +241,7 @@ card *searchdb(sqlite3 *db, card *cc,
 	if (verb) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	unsigned int a = 0;
+	unsigned int a = 0, b = 0;
 
 	if (dbok) printf("error# %d\n", dbok);
 
@@ -244,8 +253,23 @@ card *searchdb(sqlite3 *db, card *cc,
 					strcpy(cc->uid, (char*)sqlite3_column_text(stmt, a));
 				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
 					strcpy(cc->fn, (char*)sqlite3_column_text(stmt, a));
+
+				if(strcmp("em", sqlite3_column_name(stmt, a)) == 0) {
+					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
+
+					for(b = 0; b < buf[0]; b++)
+						tarr[b] = calloc(buf[1] + 1, sizeof(char));
+
+					unmarshal(buf, tarr);
+
+					cc->emnum = buf[0];
+
+					for(b = 0; b < buf[0]; b++)
+						strncpy(cc->em[b], tarr[b], buf[1] + 1);
+				}
+
 			}
-			printcard(cc);
+			printcard(cc); // TODO: Replace with card deck builder
 		}
 	}
 
@@ -258,7 +282,6 @@ int main(int argc, char *argv[]) {
 	char *cop = calloc(MBCH, sizeof(char));
 
 	sqlite3 *db;
-	sqlite3_stmt *stmt;
 
 	int op = 0;
 	int dbok = 0;
@@ -281,7 +304,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
-	// if(argc < optind + 2) errno = ENODATA;
+	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
 	if(errno) usage(cmd);
 	strncpy(cop, argv[optind], MBCH);
 	op = chops(cop);
@@ -300,7 +323,7 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-	card *cc = calloc(1, sizeof(card));
+	card *cc = calloc(1, sizeof(card)); // TODO: Deck of cards?
 
 	if(op == help) usage(cmd);
 	else if(op == import) {
@@ -316,7 +339,7 @@ int main(int argc, char *argv[]) {
 	}
 
 	// if(op == export) ecard();
-	if(op == phone) searchdb(db, cc, stmt, argv[(optind + 1)], verb);
+	if(op == phone) searchdb(db, cc, argv[(optind + 1)], verb);
 	// if(op == email) searchdb();
 
 	sqlite3_close(db);
