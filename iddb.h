@@ -51,4 +51,22 @@
 
 #define FCHAR '~'
 
+// Global variables
+typedef enum op {create, import, export, help, phone, email} op;
+
+typedef struct card {
+	unsigned int lid;
+	char uid[ULEN];
+	char fn[NALEN];
+	char org[ORLEN];
+	char ph[PHNUM][PHLEN];
+	char em[EMNUM][EMLEN];
+	unsigned int phnum;
+	unsigned int emnum;
+} card;
+
+// Forward declarations
+char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
+char **unmarshal(char *str, char **arr);
+
 #endif

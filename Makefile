@@ -1,6 +1,6 @@
 CC = cc
 TARGET = iddb
-SOURCE = iddb.c
+SOURCE = *.c
 DESTDIR = /usr/bin
 CFLAGS ?= -Wall -g -lsqlite3
 

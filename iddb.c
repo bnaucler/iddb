@@ -15,23 +15,6 @@
 #include <string.h>
 #include <sqlite3.h>
 
-typedef struct card {
-	unsigned int lid;
-	char uid[ULEN];
-	char fn[NALEN];
-	char org[ORLEN];
-	char ph[PHNUM][PHLEN];
-	char em[EMNUM][EMLEN];
-	unsigned int phnum;
-	unsigned int emnum;
-} card;
-
-// Actual operations
-typedef enum op {create, import, export, help, phone, email} op;
-
-// Operations for string comparison
-char vops[6][7] = {"create", "import", "export", "help", "phone", "email"};
-
 int usage(char *cmd) {
 
 	if (errno) perror("Error");
@@ -46,6 +29,8 @@ int usage(char *cmd) {
 
 // Check for valid operation
 static int chops(char *cop) {
+
+	char vops[6][7] = {"create", "import", "export", "help", "phone", "email"};
 
 	int opnum = sizeof(vops) / sizeof(vops[1]);
 	int oplen = strlen(cop);
@@ -66,7 +51,7 @@ static int chops(char *cop) {
 }
 
 // Return 0 if string starts with key
-int strst(char *str, char *key) {
+static int strst(char *str, char *key) {
 
 	int klen = strlen(key);
 	unsigned int a = 0;
@@ -80,7 +65,7 @@ int strst(char *str, char *key) {
 }
 
 // Format string based on object key
-char *robj(char *buf, char *key) {
+static char *robj(char *buf, char *key) {
 
 	buf = strtok(buf, ":");
 	buf = strtok(NULL, "\n");
@@ -92,7 +77,7 @@ char *robj(char *buf, char *key) {
 }
 
 // Import card to struct
-card *icard(card *cc, FILE *f) {
+static card *icard(card *cc, FILE *f) {
 
 	char *buf = malloc(MBCH);
 	cc->phnum = 0;
@@ -103,6 +88,8 @@ card *icard(card *cc, FILE *f) {
 			strncpy(cc->uid, robj(buf, UIDKEY), ULEN);
 		if(!strst(buf, FNKEY))
 			strncpy(cc->fn, robj(buf, FNKEY), NALEN);
+		if(!strst(buf, ORGKEY))
+			strncpy(cc->org, robj(buf, ORGKEY), ORLEN);
 		if(!strst(buf, EMKEY))
 			strncpy(cc->em[cc->emnum++], robj(buf, EMKEY), EMLEN);
 		if(!strst(buf, PHKEY))
@@ -114,7 +101,7 @@ card *icard(card *cc, FILE *f) {
 }
 
 // Create (or reset) database table
-int ctable(sqlite3 *db) {
+static int ctable(sqlite3 *db) {
 
 	char *sql = calloc(DBCH, sizeof(char));
 	char *err = 0;
@@ -134,44 +121,18 @@ int ctable(sqlite3 *db) {
 	return dbok;
 }
 
-// Return marshalled string to array format
-char **unmarshal(char *str, char **arr) {
+// Print card to stdout
+void printcard(card *cc, int verb) {
 
-	char *tmp = calloc(str[1] + 1, sizeof(char));
-	unsigned int a = 0, b = 0, w = 2;
+	unsigned int a = 0;
 
-	for(a = 0; a < str[0]; a++) {
-		for(b = 0; b < str[1]; b++) {
-			if(str[w] != FCHAR) tmp[b] = str[w];
-			w++;
-		}
-		if(tmp[0]) strncpy(arr[a], tmp, str[1]);
-		memset(tmp, 0, str[1] + 1);
-	}
+	if(!cc->lid) return;
+	if(cc->uid[0] && verb) printf("uid: %s\n", cc->uid);
+	printf("fn: %s\n", cc->fn);
+	if(cc->org[0]) printf("org: %s\n", cc->org);
 
-	return arr;
-}
-
-// Convert array to string
-char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
-
-	unsigned int a = 0, b = 0, w = 2, ln = 0;
-	mstr[0] = rows;
-
-	for(a = 0; a < mstr[0]; a++) {
-		ln = strlen(arr[a]);
-		if(mstr[1] < ln) mstr[1] = ln;
-	}
-
-	for(a = 0; a < mstr[0]; a++) {
-		for(b = 0; b < mstr[1]; b++) {
-			if(arr[a][b]) mstr[w++] = arr[a][b];
-			else mstr[w++] = FCHAR;
-		}
-	}
-
-	mstr[w] = '\0';
-	return mstr;
+	for(a = 0; a < cc->emnum; a++) printf("em %d: %s\n", a, cc->em[a]);
+	for(a = 0; a < cc->phnum; a++) printf("ph %d: %s\n", a, cc->ph[a]);
 }
 
 // Write struct to DB
@@ -182,33 +143,17 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
 	char *err = 0;
 
-	printf("uid: %s\n", cc->uid);
-	printf("fn: %s\n", cc->fn);
-	printf("em 0: %s\n", cc->em[0]);
-	printf("ph 0: %s\n", cc->ph[0]);
+	if(verb) printcard(cc, verb);
 
 	snprintf(sql, BBCH, "INSERT INTO id VALUES"
 			"(%d, '%s', '%s', '%s',  '%s', '%s');",
-			cc->lid++, cc->uid, cc->fn, cc->org,
+			++cc->lid, cc->uid, cc->fn, cc->org,
 			marshal(pbuf, cc->phnum, PHLEN, cc->ph),
 			marshal(mbuf, cc->emnum, EMLEN, cc->em));
 
 	if (verb) printf("Query: %s\n", sql);
 
 	return sqlite3_exec(db, sql, 0, 0, &err);
-}
-
-// Print card to stdout
-void printcard(card *cc) {
-
-	unsigned int a = 0;
-
-	if(cc->uid[0]) printf("uid: %s\n", cc->uid);
-	printf("fn: %s\n", cc->fn);
-	if(cc->org[0]) printf("org: %s\n", cc->org);
-
-	for(a = 0; a < cc->phnum; a++) printf("ph %d: %s\n", a, cc->ph[a]);
-	for(a = 0; a < cc->emnum; a++) printf("em %d: %s\n", a, cc->em[a]);
 }
 
 // Return 0 if c1 and c2 are identical (TODO: implement)
@@ -228,22 +173,14 @@ int cmpcard(card *c1, card *c2) {
 	return 0;
 }
 
-// Populate array from SQL row TODO: Implement
-card *poparr(card *cc, int ar, int ac) {
-
-	// char **tarr = calloc(ar * ac, sizeof(char));
-	// char *buf = calloc(BBCH, sizeof(char));
-
-	return cc;
-}
-
 // Read SQL data into card
-card *readid(card *cc, const char *cn, const char *ct) {
+static card *readid(card *cc, const char *cn, const char *ct) {
 
 	char *buf = calloc(BBCH, sizeof(char));
 
 	unsigned int a = 0;
 
+	if(strcmp("lid", cn) == 0) cc->lid = atoi(ct);
 	if(strcmp("uid", cn) == 0) strcpy(cc->uid, ct);
 	if(strcmp("fn", cn) == 0) strcpy(cc->fn, ct);
 	if(strcmp("org", cn) == 0) strcpy(cc->org, ct);
@@ -276,7 +213,7 @@ card *readid(card *cc, const char *cn, const char *ct) {
 	return cc;
 }
 // Return entry from database
-card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
+static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	unsigned int cci = 0;
@@ -303,7 +240,6 @@ card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 			if(cci++ > NUMCARD) return cc;
 		}
 	}
-	for(a = 0; a < cci; a++) printcard(cc[a]);
 
 	free(sql);
 	return cc;
@@ -350,7 +286,7 @@ int main(int argc, char *argv[]) {
 
 	if(op == create) {
 		if (ctable(db)) {
-			errno = EEXIST;
+			errno = EEXIST; // TODO: Better error messages..
 			usage(cmd);
 		} else {
 			printf("Database %s created successfully\n", DBNAME);
@@ -358,6 +294,7 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
+	// Create a deck of cards
 	card **cc = calloc(NUMCARD, sizeof(card));
 	for(a = 0; a < NUMCARD; a++) cc[a] = calloc(1, sizeof(card));
 
@@ -375,7 +312,10 @@ int main(int argc, char *argv[]) {
 	}
 
 	// if(op == export) ecard();
-	if(op == phone) searchdb(db, cc, argv[(optind + 1)], verb);
+	if(op == phone) {
+		searchdb(db, cc, argv[(optind + 1)], verb);
+		for(a = 0; a < NUMCARD; a++) printcard(cc[a], verb);
+	}
 	// if(op == email) searchdb();
 
 	sqlite3_close(db);
