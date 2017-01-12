@@ -228,12 +228,47 @@ int cmpcard(card *c1, card *c2) {
 	return 0;
 }
 
+// Read SQL data into card
+card *readid(card *cc, const char *cn, const char *ct) {
+
+	char *buf = calloc(BBCH, sizeof(char));
+	char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
+
+	unsigned int a = 0;
+
+	if(strcmp("uid", cn) == 0) strcpy(cc->uid, ct);
+	if(strcmp("fn", cn) == 0) strcpy(cc->fn, ct);
+	if(strcmp("org", cn) == 0) strcpy(cc->org, ct);
+
+	if(strcmp("ph", cn) == 0) {
+		strncpy(buf, ct, BBCH);
+		for(a = 0; a < buf[0]; a++)
+			tarr[a] = calloc(buf[1] + 1, sizeof(char));
+		unmarshal(buf, tarr);
+		cc->phnum = buf[0];
+		for(a = 0; a < buf[0]; a++)
+			strncpy(cc->ph[a], tarr[a], buf[1] + 1);
+	}
+
+	if(strcmp("em", cn) == 0) {
+		strncpy(buf, ct, BBCH);
+		for(a = 0; a < buf[0]; a++)
+			tarr[a] = calloc(buf[1] + 1, sizeof(char));
+		unmarshal(buf, tarr);
+		cc->emnum = buf[0];
+		for(a = 0; a < buf[0]; a++)
+			strncpy(cc->em[a], tarr[a], buf[1] + 1);
+	}
+
+	free(buf);
+	free(tarr);
+	return cc;
+}
+
 // Return entry from database
 card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
-	char *buf = calloc(BBCH, sizeof(char));
-	char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
 
 	sqlite3_stmt *stmt;
 
@@ -243,43 +278,16 @@ card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 	if (verb) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	unsigned int a = 0, b = 0;
+	unsigned int a = 0;
 
-	if (dbok) printf("error# %d\n", dbok);
+	if (dbok && verb) printf("SQL error: %d\n", dbok);
 
 	while((dbok = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbok == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-				if(strcmp("uid", sqlite3_column_name(stmt, a)) == 0)
-					strcpy(cc->uid, (char*)sqlite3_column_text(stmt, a));
-
-				if(strcmp("fn", sqlite3_column_name(stmt, a)) == 0)
-					strcpy(cc->fn, (char*)sqlite3_column_text(stmt, a));
-
-				if(strcmp("org", sqlite3_column_name(stmt, a)) == 0)
-					strcpy(cc->org, (char*)sqlite3_column_text(stmt, a));
-
-				if(strcmp("ph", sqlite3_column_name(stmt, a)) == 0) {
-					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
-					for(b = 0; b < buf[0]; b++)
-						tarr[b] = calloc(buf[1] + 1, sizeof(char));
-					unmarshal(buf, tarr);
-					cc->phnum = buf[0];
-					for(b = 0; b < buf[0]; b++)
-						strncpy(cc->ph[b], tarr[b], buf[1] + 1);
-				}
-
-				if(strcmp("em", sqlite3_column_name(stmt, a)) == 0) {
-					strncpy(buf, (char*)sqlite3_column_text(stmt, a), BBCH);
-					for(b = 0; b < buf[0]; b++)
-						tarr[b] = calloc(buf[1] + 1, sizeof(char));
-					unmarshal(buf, tarr);
-					cc->emnum = buf[0];
-					for(b = 0; b < buf[0]; b++)
-						strncpy(cc->em[b], tarr[b], buf[1] + 1);
-				}
-
+				readid(cc, sqlite3_column_name(stmt, a),
+						(char*)sqlite3_column_text(stmt, a)); 
 			}
 			printcard(cc); // TODO: Replace with card deck builder
 		}
