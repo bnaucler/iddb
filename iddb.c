@@ -228,11 +228,19 @@ int cmpcard(card *c1, card *c2) {
 	return 0;
 }
 
+// Populate array from SQL row TODO: Implement
+card *poparr(card *cc, int ar, int ac) {
+
+	// char **tarr = calloc(ar * ac, sizeof(char));
+	// char *buf = calloc(BBCH, sizeof(char));
+
+	return cc;
+}
+
 // Read SQL data into card
 card *readid(card *cc, const char *cn, const char *ct) {
 
 	char *buf = calloc(BBCH, sizeof(char));
-	char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
 
 	unsigned int a = 0;
 
@@ -241,34 +249,37 @@ card *readid(card *cc, const char *cn, const char *ct) {
 	if(strcmp("org", cn) == 0) strcpy(cc->org, ct);
 
 	if(strcmp("ph", cn) == 0) {
+		char **parr = calloc(PHNUM * PHLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
-			tarr[a] = calloc(buf[1] + 1, sizeof(char));
-		unmarshal(buf, tarr);
+			parr[a] = calloc(buf[1] + 1, sizeof(char));
+		unmarshal(buf, parr);
 		cc->phnum = buf[0];
 		for(a = 0; a < buf[0]; a++)
-			strncpy(cc->ph[a], tarr[a], buf[1] + 1);
+			strncpy(cc->ph[a], parr[a], buf[1] + 1);
+		free(parr);
 	}
 
 	if(strcmp("em", cn) == 0) {
+		char **earr = calloc(EMNUM * EMLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
-			tarr[a] = calloc(buf[1] + 1, sizeof(char));
-		unmarshal(buf, tarr);
+			earr[a] = calloc(buf[1] + 1, sizeof(char));
+		unmarshal(buf, earr);
 		cc->emnum = buf[0];
 		for(a = 0; a < buf[0]; a++)
-			strncpy(cc->em[a], tarr[a], buf[1] + 1);
+			strncpy(cc->em[a], earr[a], buf[1] + 1);
+		free(earr);
 	}
 
 	free(buf);
-	free(tarr);
 	return cc;
 }
-
 // Return entry from database
-card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
+card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
+	unsigned int cci = 0;
 
 	sqlite3_stmt *stmt;
 
@@ -286,13 +297,15 @@ card *searchdb(sqlite3 *db, card *cc, char *str, int verb) {
 		if(dbok == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-				readid(cc, sqlite3_column_name(stmt, a),
-						(char*)sqlite3_column_text(stmt, a)); 
+				readid(cc[cci], sqlite3_column_name(stmt, a),
+						(char*)sqlite3_column_text(stmt, a));
 			}
-			printcard(cc); // TODO: Replace with card deck builder
+			if(cci++ > NUMCARD) return cc;
 		}
 	}
+	for(a = 0; a < cci; a++) printcard(cc[a]);
 
+	free(sql);
 	return cc;
 }
 
@@ -306,6 +319,8 @@ int main(int argc, char *argv[]) {
 	int op = 0;
 	int dbok = 0;
 	int verb = 0;
+
+	unsigned int a = 0;
 
 	int optc;
 
@@ -343,7 +358,8 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-	card *cc = calloc(1, sizeof(card)); // TODO: Deck of cards?
+	card **cc = calloc(NUMCARD, sizeof(card));
+	for(a = 0; a < NUMCARD; a++) cc[a] = calloc(1, sizeof(card));
 
 	if(op == help) usage(cmd);
 	else if(op == import) {
@@ -352,8 +368,8 @@ int main(int argc, char *argv[]) {
 			errno = ENOENT;
 			usage(cmd);
 		} else {
-			icard(cc, f);
-			dbok = wrdb(db, cc, verb);
+			icard(cc[0], f);
+			dbok = wrdb(db, cc[0], verb);
 			printf("dbok: %d\n", dbok);
 		}
 	}

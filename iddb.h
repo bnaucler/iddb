@@ -47,6 +47,7 @@
 #define ADDRKEY "ADR"
 
 #define CITEMS 3
+#define NUMCARD 10
 
 #define FCHAR '~'
 
