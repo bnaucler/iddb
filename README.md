@@ -6,6 +6,9 @@ Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 
 Compiled and tested on Arch Linux 4.8.
 
+## Why iddb?
+No reason. Use abook / khard instead.
+
 ## Dependencies
 * SQLite3
 

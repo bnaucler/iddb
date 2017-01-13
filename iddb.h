@@ -39,6 +39,8 @@
 #define MBCH 128
 #define SBCH 32
 
+#define STARTKEY "BEGIN:VCARD"
+#define STOPKEY "END:VCARD"
 #define UIDKEY "UID"
 #define ORGKEY "ORG"
 #define EMKEY "EMAIL"

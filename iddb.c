@@ -76,25 +76,60 @@ static char *robj(char *buf, char *key) {
 	return buf;
 }
 
+// Fetch index size
+int getindex(sqlite3 *db, int verb) {
+
+	int ret = 0;
+	unsigned int a = 0;
+
+	char *sql = calloc(BBCH, sizeof(char));
+	sqlite3_stmt *stmt;
+
+	snprintf(sql, BBCH, "SELECT * FROM id;");
+
+	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	if (verb) printf("Query: %s\n", sql);
+
+	// TODO: Replace with callback?
+	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
+		if(dbop == SQLITE_ROW) {
+			int ccnt = sqlite3_column_count(stmt);
+			for(a = 0; a < ccnt; a++){
+			if(strcmp("lid", sqlite3_column_name(stmt, a)) == 0) 
+				ret = atoi((char*)sqlite3_column_text(stmt, a));
+			}
+		}
+	}
+
+	if(ret > -1) return ret;
+	else return -1;
+}
+
 // Import card to struct
-static card *icard(card *cc, FILE *f) {
+static card *icard(card *cc, FILE *f, sqlite3 *db, int verb) {
 
 	char *buf = malloc(MBCH);
+	int verc = 0;
+
 	cc->phnum = 0;
 	cc->emnum = 0;
 
 	while(fgets(buf, MBCH, f)){
-		if(!strst(buf, UIDKEY))
+		if(!strst(buf, STARTKEY)) verc++;
+		else if(!strst(buf, STOPKEY)) verc++;
+		else if(!strst(buf, UIDKEY))
 			strncpy(cc->uid, robj(buf, UIDKEY), ULEN);
-		if(!strst(buf, FNKEY))
+		else if(!strst(buf, FNKEY))
 			strncpy(cc->fn, robj(buf, FNKEY), NALEN);
-		if(!strst(buf, ORGKEY))
+		else if(!strst(buf, ORGKEY))
 			strncpy(cc->org, robj(buf, ORGKEY), ORLEN);
-		if(!strst(buf, EMKEY))
+		else if(!strst(buf, EMKEY))
 			strncpy(cc->em[cc->emnum++], robj(buf, EMKEY), EMLEN);
-		if(!strst(buf, PHKEY))
+		else if(!strst(buf, PHKEY))
 			strncpy(cc->ph[cc->phnum++], robj(buf, PHKEY), PHLEN);
 	}
+
+	if(verc == 2) cc->lid = getindex(db, verb);
 
 	free(buf);
 	return cc;
@@ -114,7 +149,9 @@ static int ctable(sqlite3 *db) {
 
 	if(!dbok) {
 		strncpy(sql, "DROP TABLE IF EXISTS ctr;"
-			"CREATE TABLE ctr(num, INT);", DBCH);
+			"CREATE TABLE ctr(addr INT, num INT);", DBCH);
+		dbok = sqlite3_exec(db, sql, 0, 0, &err);
+		if(!dbok) strncpy(sql, "INSERT INTO ctr VALUES(0, 0);", BBCH);
 		dbok = sqlite3_exec(db, sql, 0, 0, &err);
 	}
 
@@ -135,12 +172,27 @@ void printcard(card *cc, int verb) {
 	for(a = 0; a < cc->phnum; a++) printf("ph %d: %s\n", a, cc->ph[a]);
 }
 
+// Write counter to index
+int wrindex(sqlite3 *db, int i, int verb) {
+
+	char *sql = calloc(BBCH, sizeof(char));
+	char *err = 0;
+
+	snprintf(sql, BBCH, "UPDATE ctr SET num = %d;", i);
+	int ret = sqlite3_exec(db, sql, 0, 0, &err);
+
+	if(verb) printf("Query: %s\n", sql);
+
+	return ret;
+}
+
 // Write struct to DB
 int wrdb(sqlite3 *db, card *cc, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
 	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
+
 	char *err = 0;
 
 	if(verb) printcard(cc, verb);
@@ -153,7 +205,9 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 
 	if (verb) printf("Query: %s\n", sql);
 
-	return sqlite3_exec(db, sql, 0, 0, &err);
+	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	if(!dbok) wrindex(db, cc->lid, verb);
+	return dbok;
 }
 
 // Return 0 if c1 and c2 are identical (TODO: implement)
@@ -305,9 +359,9 @@ int main(int argc, char *argv[]) {
 			errno = ENOENT;
 			usage(cmd);
 		} else {
-			icard(cc[0], f);
+			icard(cc[0], f, db, verb);
 			dbok = wrdb(db, cc[0], verb);
-			printf("dbok: %d\n", dbok);
+			if(dbok) printf("SQL Error #: %d\n", dbok);
 		}
 	}
 
