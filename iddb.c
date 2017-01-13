@@ -15,9 +15,9 @@
 #include <string.h>
 #include <sqlite3.h>
 
-int usage(char *cmd) {
+int usage(const char *cmd) {
 
-	if (errno) perror("Error");
+	if (errno) printf("Error: %s\n", strerror(errno));
 
 	printf("%s %s - usage:\n", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
@@ -28,9 +28,10 @@ int usage(char *cmd) {
 }
 
 // Check for valid operation
-static int chops(char *cop) {
+static int chops(const char *cop) {
 
-	char vops[7][7] = {"create", "import", "export", "help", "phone", "email", "all"};
+	char vops[7][7] = {"create", "import", "export", "help",
+		"phone", "email", "all"};
 
 	int opnum = sizeof(vops) / sizeof(vops[1]);
 	int oplen = strlen(cop);
@@ -38,12 +39,8 @@ static int chops(char *cop) {
 	unsigned int a;
 
 	for(a = 0; a < opnum; a++) {
-		if(oplen == 1) {
-			if(cop[0] == vops[a][0]) return a;
-		}
-		else {
-			if(!strcmp(cop, vops[a])) return a;
-		}
+		if(oplen == 1) { if(cop[0] == vops[a][0]) return a; }
+		else { if(!strcmp(cop, vops[a])) return a; }
 	}
 
 	errno = EINVAL;
@@ -51,7 +48,7 @@ static int chops(char *cop) {
 }
 
 // Return 0 if string starts with key
-static int strst(char *str, char *key) {
+static int strst(const char *str, const char *key) {
 
 	int klen = strlen(key);
 	unsigned int a = 0;
@@ -65,7 +62,7 @@ static int strst(char *str, char *key) {
 }
 
 // Format string based on object key
-static char *robj(char *buf, char *key) {
+static char *robj(char *buf, const char *key) {
 
 	buf = strtok(buf, ":");
 	buf = strtok(NULL, "\n");
@@ -77,7 +74,7 @@ static char *robj(char *buf, char *key) {
 }
 
 // Fetch index size
-static int getindex(sqlite3 *db, int verb) {
+static int getindex(sqlite3 *db, const int verb) {
 
 	int ret = 0;
 	unsigned int a = 0;
@@ -101,6 +98,7 @@ static int getindex(sqlite3 *db, int verb) {
 		}
 	}
 
+	free(sql);
 	if(ret > -1) return ret;
 	else return -1;
 }
@@ -111,7 +109,7 @@ static void ecard() {
 }
 
 // Import card to struct
-static card *icard(card *cc, FILE *f, sqlite3 *db, int verb) {
+static card *icard(card *cc, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
 	int verc = 0;
@@ -160,11 +158,12 @@ static int ctable(sqlite3 *db) {
 		dbok = sqlite3_exec(db, sql, 0, 0, &err);
 	}
 
+	free(sql);
 	return dbok;
 }
 
 // Print card to stdout
-int printcard(card *cc, int op, int prnum, int verb) {
+int printcard(card *cc, const int op, const int prnum, const int verb) {
 
 	unsigned int a = 0;
 
@@ -201,7 +200,7 @@ int printcard(card *cc, int op, int prnum, int verb) {
 }
 
 // Write counter to index
-static int wrindex(sqlite3 *db, int i, int verb) {
+static int wrindex(sqlite3 *db, const int i, const int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
@@ -211,11 +210,12 @@ static int wrindex(sqlite3 *db, int i, int verb) {
 
 	if(verb > 1) printf("Query: %s\n", sql);
 
+	free(sql);
 	return ret;
 }
 
 // Write struct to DB
-int wrdb(sqlite3 *db, card *cc, int op, int verb) {
+int wrdb(sqlite3 *db, card *cc, const int op, const int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
@@ -235,11 +235,15 @@ int wrdb(sqlite3 *db, card *cc, int op, int verb) {
 
 	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
 	if(!dbok) wrindex(db, cc->lid, verb);
+
+	free(sql);
+	free(pbuf);
+	free(mbuf);
 	return dbok;
 }
 
 // Return 0 if c1 and c2 are identical (TODO: implement)
-int cmpcard(card *c1, card *c2) {
+int cmpcard(const card *c1, const card *c2) {
 
 	unsigned int a = 0;
 
@@ -294,7 +298,8 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 	free(buf);
 	return cc;
 }
-// Return entry from database
+
+// Return entry from database (TODO: Separate to deck and single)
 static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -365,8 +370,11 @@ int main(int argc, char *argv[]) {
 
 	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
 	if(errno) usage(cmd);
+
 	strncpy(cop, argv[optind], MBCH);
 	op = chops(cop);
+	if(op < 0) errno = EINVAL;
+	if(errno) usage(cmd);
 
 	dbok = sqlite3_open(DBNAME, &db);
 	if(dbok) errno = ENOENT;
@@ -395,11 +403,11 @@ int main(int argc, char *argv[]) {
 		if(f == NULL) {
 			errno = ENOENT;
 			usage(cmd);
-		} else {
-			icard(cc[0], f, db, verb);
-			dbok = wrdb(db, cc[0], op, verb);
-			if(dbok) printf("SQL Error #: %d\n", dbok);
-		}
+		} 
+		icard(cc[0], f, db, verb);
+		dbok = wrdb(db, cc[0], op, verb);
+		if(dbok) printf("SQL Error #: %d\n", dbok);
+		fclose(f);
 
 	} else if(op == export) { 
 		ecard();
@@ -409,6 +417,8 @@ int main(int argc, char *argv[]) {
 		for(a = 0; a < NUMCARD; a++) printcard(cc[a], op, prnum, verb);
 	}
 
+	free(cmd);
+	free(cop);
 	sqlite3_close(db);
 	return 0;
 }
