@@ -54,7 +54,7 @@
 #define FCHAR '~'
 
 // Global variables
-typedef enum op {create, import, export, help, phone, email} op;
+typedef enum op {create, import, export, help, phone, email, all} op;
 
 typedef struct card {
 	unsigned int lid;

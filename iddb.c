@@ -30,7 +30,7 @@ int usage(char *cmd) {
 // Check for valid operation
 static int chops(char *cop) {
 
-	char vops[6][7] = {"create", "import", "export", "help", "phone", "email"};
+	char vops[7][7] = {"create", "import", "export", "help", "phone", "email", "all"};
 
 	int opnum = sizeof(vops) / sizeof(vops[1]);
 	int oplen = strlen(cop);
@@ -42,7 +42,7 @@ static int chops(char *cop) {
 			if(cop[0] == vops[a][0]) return a;
 		}
 		else {
-			if(strcmp(cop, vops[a]) == 0) return a;
+			if(!strcmp(cop, vops[a])) return a;
 		}
 	}
 
@@ -77,7 +77,7 @@ static char *robj(char *buf, char *key) {
 }
 
 // Fetch index size
-int getindex(sqlite3 *db, int verb) {
+static int getindex(sqlite3 *db, int verb) {
 
 	int ret = 0;
 	unsigned int a = 0;
@@ -88,14 +88,14 @@ int getindex(sqlite3 *db, int verb) {
 	snprintf(sql, BBCH, "SELECT * FROM id;");
 
 	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	if (verb) printf("Query: %s\n", sql);
+	if (verb > 1) printf("Query: %s\n", sql);
 
 	// TODO: Replace with callback?
 	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbop == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-			if(strcmp("lid", sqlite3_column_name(stmt, a)) == 0) 
+			if(!strcmp("lid", sqlite3_column_name(stmt, a))) 
 				ret = atoi((char*)sqlite3_column_text(stmt, a));
 			}
 		}
@@ -103,6 +103,11 @@ int getindex(sqlite3 *db, int verb) {
 
 	if(ret > -1) return ret;
 	else return -1;
+}
+
+// TODO
+static void ecard() {
+
 }
 
 // Import card to struct
@@ -159,21 +164,44 @@ static int ctable(sqlite3 *db) {
 }
 
 // Print card to stdout
-void printcard(card *cc, int verb) {
+int printcard(card *cc, int op, int prnum, int verb) {
 
 	unsigned int a = 0;
 
-	if(!cc->lid) return;
-	if(cc->uid[0] && verb) printf("uid: %s\n", cc->uid);
-	printf("fn: %s\n", cc->fn);
-	if(cc->org[0]) printf("org: %s\n", cc->org);
+	if(!cc->lid) return 1;
 
-	for(a = 0; a < cc->emnum; a++) printf("em %d: %s\n", a, cc->em[a]);
-	for(a = 0; a < cc->phnum; a++) printf("ph %d: %s\n", a, cc->ph[a]);
+	if(op == all) {
+		if(verb) printf("%d: ", cc->lid);
+		printf("%s ", cc->fn);
+		if(cc->org[0]) printf("(%s)\n", cc->org);
+		else printf("\n");
+		if(cc->uid[0] && verb) printf("UID: %s\n", cc->uid);
+
+		for(a = 0; a < cc->emnum && a < prnum; a++) 
+			printf("email %d: %s\n", a, cc->em[a]);
+		for(a = 0; a < cc->phnum && a < prnum; a++)
+			printf("phone %d: %s\n", a, cc->ph[a]);
+		printf("\n");
+
+	} else if(op == email) {
+		if(verb) printf("%s\n", cc->fn);
+		for(a = 0; a < cc->emnum && a < prnum; a++) {
+			if(verb) printf("email %d: ", a);
+			printf("%s\n", cc->em[a]);
+		}
+	} else if(op == phone) {
+		if(verb) printf("%s\n", cc->fn);
+		for(a = 0; a < cc->phnum && a < prnum; a++) {
+			if(verb) printf("phone %d: ", a);
+			printf("%s\n", cc->ph[a]);
+		}
+	}
+
+	return 0;
 }
 
 // Write counter to index
-int wrindex(sqlite3 *db, int i, int verb) {
+static int wrindex(sqlite3 *db, int i, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
@@ -181,13 +209,13 @@ int wrindex(sqlite3 *db, int i, int verb) {
 	snprintf(sql, BBCH, "UPDATE ctr SET num = %d;", i);
 	int ret = sqlite3_exec(db, sql, 0, 0, &err);
 
-	if(verb) printf("Query: %s\n", sql);
+	if(verb > 1) printf("Query: %s\n", sql);
 
 	return ret;
 }
 
 // Write struct to DB
-int wrdb(sqlite3 *db, card *cc, int verb) {
+int wrdb(sqlite3 *db, card *cc, int op, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
@@ -195,7 +223,7 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 
 	char *err = 0;
 
-	if(verb) printcard(cc, verb);
+	if(verb) printcard(cc, op, NUMCARD, verb);
 
 	snprintf(sql, BBCH, "INSERT INTO id VALUES"
 			"(%d, '%s', '%s', '%s',  '%s', '%s');",
@@ -203,7 +231,7 @@ int wrdb(sqlite3 *db, card *cc, int verb) {
 			marshal(pbuf, cc->phnum, PHLEN, cc->ph),
 			marshal(mbuf, cc->emnum, EMLEN, cc->em));
 
-	if (verb) printf("Query: %s\n", sql);
+	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
 	if(!dbok) wrindex(db, cc->lid, verb);
@@ -234,12 +262,12 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 
 	unsigned int a = 0;
 
-	if(strcmp("lid", cn) == 0) cc->lid = atoi(ct);
-	if(strcmp("uid", cn) == 0) strcpy(cc->uid, ct);
-	if(strcmp("fn", cn) == 0) strcpy(cc->fn, ct);
-	if(strcmp("org", cn) == 0) strcpy(cc->org, ct);
+	if(!strcmp("lid", cn)) cc->lid = atoi(ct);
+	if(!strcmp("uid", cn)) strcpy(cc->uid, ct);
+	if(!strcmp("fn", cn)) strcpy(cc->fn, ct);
+	if(!strcmp("org", cn)) strcpy(cc->org, ct);
 
-	if(strcmp("ph", cn) == 0) {
+	if(!strcmp("ph", cn)) {
 		char **parr = calloc(PHNUM * PHLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
@@ -251,7 +279,7 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 		free(parr);
 	}
 
-	if(strcmp("em", cn) == 0) {
+	if(!strcmp("em", cn)) {
 		char **earr = calloc(EMNUM * EMLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
@@ -277,7 +305,7 @@ static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 	if(str == NULL) snprintf(sql, BBCH, "SELECT * FROM id;");
 	else snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
 
-	if (verb) printf("Query: %s\n", sql);
+	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	unsigned int a = 0;
@@ -309,6 +337,7 @@ int main(int argc, char *argv[]) {
 	int op = 0;
 	int dbok = 0;
 	int verb = 0;
+	int prnum = NUMCARD;
 
 	unsigned int a = 0;
 
@@ -316,8 +345,13 @@ int main(int argc, char *argv[]) {
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
-	while((optc = getopt(argc, argv, "v")) != -1) {
+	while((optc = getopt(argc, argv, "n:v")) != -1) {
 		switch (optc) {
+
+			case 'n':
+				prnum = atoi(optarg);
+				if(prnum > NUMCARD) prnum = NUMCARD;
+				break;
 
 			case 'v':
 				verb++;
@@ -352,25 +386,28 @@ int main(int argc, char *argv[]) {
 	card **cc = calloc(NUMCARD, sizeof(card));
 	for(a = 0; a < NUMCARD; a++) cc[a] = calloc(1, sizeof(card));
 
-	if(op == help) usage(cmd);
-	else if(op == import) {
+	// Initiate operations
+	if(op == help) {
+		usage(cmd);
+
+	} else if(op == import) {
 		FILE *f = fopen(argv[(optind + 1)], "r");
 		if(f == NULL) {
 			errno = ENOENT;
 			usage(cmd);
 		} else {
 			icard(cc[0], f, db, verb);
-			dbok = wrdb(db, cc[0], verb);
+			dbok = wrdb(db, cc[0], op, verb);
 			if(dbok) printf("SQL Error #: %d\n", dbok);
 		}
-	}
 
-	// if(op == export) ecard();
-	if(op == phone) {
+	} else if(op == export) { 
+		ecard();
+
+	} else if(op == phone || op == email || op == all) {
 		searchdb(db, cc, argv[(optind + 1)], verb);
-		for(a = 0; a < NUMCARD; a++) printcard(cc[a], verb);
+		for(a = 0; a < NUMCARD; a++) printcard(cc[a], op, prnum, verb);
 	}
-	// if(op == email) searchdb();
 
 	sqlite3_close(db);
 	return 0;
