@@ -2,3 +2,4 @@ iddb
 *.db
 *.sl3
 vcf/*
+exp/*

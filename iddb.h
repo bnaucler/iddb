@@ -39,6 +39,10 @@
 #define MBCH 128
 #define SBCH 32
 
+#define EXPLEN 20
+#define EXPSUF ".vcf"
+#define EXPDIR "exp/"
+
 #define STARTKEY "BEGIN:VCARD"
 #define STOPKEY "END:VCARD"
 #define UIDKEY "UID"
@@ -57,7 +61,7 @@
 typedef enum op {create, import, export, help, phone, email, all} op;
 
 typedef struct card {
-	unsigned int lid;
+	int lid;
 	char uid[ULEN];
 	char fn[NALEN];
 	char org[ORLEN];
@@ -70,5 +74,7 @@ typedef struct card {
 // Forward declarations
 char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
 char **unmarshal(char *str, char **arr);
+int strst(const char *str, const char *key);
+int randstr(char *str, const int len);
 
 #endif

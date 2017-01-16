@@ -27,13 +27,20 @@ int usage(const char *cmd) {
 	exit(errno);
 }
 
+// Validate card
+int valcard(card *c) {
+	//TODO: Make useful
+	if(c->lid > 0) return 1;
+	else return 0;
+}
+
 // Check for valid operation
 static int chops(const char *cop) {
 
 	char vops[7][7] = {"create", "import", "export", "help",
 		"phone", "email", "all"};
 
-	int opnum = sizeof(vops) / sizeof(vops[1]);
+	int opnum = sizeof(vops) / sizeof(vops[0]);
 	int oplen = strlen(cop);
 
 	unsigned int a;
@@ -45,20 +52,6 @@ static int chops(const char *cop) {
 
 	errno = EINVAL;
 	return -1;
-}
-
-// Return 0 if string starts with key
-static int strst(const char *str, const char *key) {
-
-	int klen = strlen(key);
-	unsigned int a = 0;
-
-	// Not sure if tolower is needed
-	for(a = 0; a < klen; a++) {
-		if(tolower(str[a]) != tolower(key[a])) return 1;
-	}
-
-	return 0;
 }
 
 // Format string based on object key
@@ -103,9 +96,30 @@ static int getindex(sqlite3 *db, const int verb) {
 	else return -1;
 }
 
-// TODO
-static void ecard() {
+// Export card to file
+static char *ecard(card *c, char *fpath, int psz, int verb) {
 
+	char *rstr = calloc(EXPLEN + 1, sizeof(char));
+	unsigned int a = 0;
+	
+	memset(fpath, 0, psz);
+
+	randstr(rstr, EXPLEN);
+	snprintf(fpath, MBCH, "%s%s%s", EXPDIR, rstr, EXPSUF);
+
+	FILE *f = fopen(fpath, "w");
+
+	fprintf(f, "BEGIN:VCARD\nVERSION:3.0\n");
+	fprintf(f, "FN:%s\n", c->fn);
+	if(c->uid[0]) fprintf(f, "UID:%s\n", c->uid);
+	if(c->org[0]) fprintf(f, "ORG:%s\n", c->org);
+	for(a = 0; a < c->emnum; a++) fprintf(f, "EMAIL;TYPE=HOME:%s\n", c->em[a]);
+	for(a = 0; a < c->phnum; a++) fprintf(f, "TEL;TYPE=HOME:%s\n", c->ph[a]);
+	fprintf(f, "END:VCARD\n");
+
+	fclose(f);
+
+	return fpath;
 }
 
 // Import card to struct
@@ -392,7 +406,10 @@ int main(int argc, char *argv[]) {
 
 	// Create a deck of cards
 	card **cc = calloc(NUMCARD, sizeof(card));
-	for(a = 0; a < NUMCARD; a++) cc[a] = calloc(1, sizeof(card));
+	for(a = 0; a < NUMCARD; a++) {
+		cc[a] = calloc(1, sizeof(card));
+		cc[a]->lid = -1;
+	}
 
 	// Initiate operations
 	if(op == help) {
@@ -410,7 +427,15 @@ int main(int argc, char *argv[]) {
 		fclose(f);
 
 	} else if(op == export) { 
-		ecard();
+		searchdb(db, cc, argv[(optind + 1)], verb);
+		char *fpath = calloc(MBCH, sizeof(char));
+		for(a = 0; a < prnum; a++) {
+			if(valcard(cc[a])) {
+				ecard(cc[a], fpath, MBCH, verb);
+				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
+			}
+		}
+		free(fpath);
 
 	} else if(op == phone || op == email || op == all) {
 		searchdb(db, cc, argv[(optind + 1)], verb);
