@@ -22,7 +22,7 @@ int usage(const char *cmd) {
 	printf("%s %s - usage:\n", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
 	printf("Possible commands are:\n");
-	printf("c[reate], i[mport], e[xport], h[elp], p[hone], e[mail], a[ll]\n");
+	printf("c[reate], i[mport], e[xport], h[elp], p[hone], m[ail], a[ll]\n");
 
 	exit(errno);
 }
@@ -38,15 +38,14 @@ int valcard(card *c) {
 static int chops(const char *cop) {
 
 	char vops[7][7] = {"create", "import", "export", "help",
-		"phone", "email", "all"};
+		"phone", "mail", "all"};
 
 	int opnum = sizeof(vops) / sizeof(vops[0]);
-	int oplen = strlen(cop);
 
 	unsigned int a;
 
 	for(a = 0; a < opnum; a++) {
-		if(oplen == 1) { if(cop[0] == vops[a][0]) return a; }
+		if(strlen(cop) == 1) { if(cop[0] == vops[a][0]) return a; }
 		else { if(!strcmp(cop, vops[a])) return a; }
 	}
 
@@ -118,6 +117,7 @@ static char *ecard(card *c, char *fpath, int psz, int verb) {
 	fprintf(f, "END:VCARD\n");
 
 	fclose(f);
+	free(rstr);
 
 	return fpath;
 }
@@ -196,7 +196,7 @@ int printcard(card *cc, const int op, const int prnum, const int verb) {
 			printf("phone %d: %s\n", a, cc->ph[a]);
 		printf("\n");
 
-	} else if(op == email) {
+	} else if(op == mail) {
 		if(verb) printf("%s\n", cc->fn);
 		for(a = 0; a < cc->emnum && a < prnum; a++) {
 			if(verb) printf("email %d: ", a);
@@ -411,7 +411,7 @@ int main(int argc, char *argv[]) {
 		cc[a]->lid = -1;
 	}
 
-	// Initiate operations
+	// Initiate operations TODO: create new func()
 	if(op == help) {
 		usage(cmd);
 
@@ -433,13 +433,16 @@ int main(int argc, char *argv[]) {
 			if(valcard(cc[a])) {
 				ecard(cc[a], fpath, MBCH, verb);
 				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
-			}
+			} else break;
 		}
 		free(fpath);
 
-	} else if(op == phone || op == email || op == all) {
+	} else if(op == phone || op == mail || op == all) {
 		searchdb(db, cc, argv[(optind + 1)], verb);
-		for(a = 0; a < NUMCARD; a++) printcard(cc[a], op, prnum, verb);
+		for(a = 0; a < NUMCARD; a++)  {
+			if(valcard(cc[a])) printcard(cc[a], op, prnum, verb);
+			else break;
+		}
 	}
 
 	free(cmd);

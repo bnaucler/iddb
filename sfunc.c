@@ -23,12 +23,13 @@ int strst(const char *str, const char *key) {
 int randstr(char *str, const int len) {
 
 	char charset[] = "0123456789abcdefghijklmnopqrstuvwxyz";
+	int cslen = strlen(charset);
 	time_t t;
 	unsigned int a = 0;
 
 	srand((unsigned) time(&t));
 
-	for(a = 0; a < len; a++) str[a] = charset[(rand() % strlen(charset))];
+	for(a = 0; a < len; a++) str[a] = charset[(rand() % cslen)];
 	str[len] = '\0';
 
 	return a;
