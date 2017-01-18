@@ -53,18 +53,6 @@ static int chops(const char *cop) {
 	return -1;
 }
 
-// Format string based on object key
-static char *robj(char *buf, const char *key) {
-
-	buf = strtok(buf, ":");
-	buf = strtok(NULL, "\n");
-
-	int p = strlen(buf) - 1;
-	while(!isalnum(buf[p])) buf[p--] = '\0';
-
-	return buf;
-}
-
 // Fetch index size
 static int getindex(sqlite3 *db, const int verb) {
 
@@ -344,19 +332,6 @@ static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	free(sql);
 	return cc;
-}
-
-// Read line from stdin
-static int readline(char *prompt, char *buf, const int mxlen) {
-
-	memset(buf, 0, mxlen);
-
-	if(prompt) printf("%s: ", prompt);
-	fgets(buf, mxlen, stdin);
-	buf[(strlen(buf) - 1)] = '\0';
-	if(!buf[0]) return 1;
-
-	return 0;
 }
 
 // Read new card from stdin

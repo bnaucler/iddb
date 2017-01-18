@@ -72,10 +72,14 @@ typedef struct card {
 	unsigned int emnum;
 } card;
 
-// Forward declarations
+// Forward declarations - marshal.c
 char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
 char **unmarshal(char *str, char **arr);
+
+// Forward declarations - sfunc.c
 int strst(const char *str, const char *key);
 int randstr(char *str, const int len);
+int readline(char *prompt, char *buf, const int mxlen);
+char *robj(char *buf, const char *key);
 
 #endif

@@ -34,3 +34,28 @@ int randstr(char *str, const int len) {
 
 	return a;
 }
+
+// Read line from stdin
+int readline(char *prompt, char *buf, const int mxlen) {
+
+	memset(buf, 0, mxlen);
+
+	if(prompt) printf("%s: ", prompt);
+	fgets(buf, mxlen, stdin);
+	buf[(strlen(buf) - 1)] = '\0';
+
+	if(!buf[0]) return 1;
+	else return 0;
+}
+
+// Format string based on object key
+char *robj(char *buf, const char *key) {
+
+	buf = strtok(buf, ":");
+	buf = strtok(NULL, "\n");
+
+	int p = strlen(buf) - 1;
+	while(!isalnum(buf[p])) buf[p--] = '\0';
+
+	return buf;
+}
