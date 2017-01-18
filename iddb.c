@@ -22,7 +22,7 @@ int usage(const char *cmd) {
 	printf("%s %s - usage:\n", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
 	printf("Possible commands are:\n");
-	printf("c[reate], i[mport], e[xport], h[elp], p[hone], m[ail], a[ll]\n");
+	printf("c[reate], i[mport], e[xport], h[elp], p[hone], m[ail], n[ew], a[ll]\n");
 
 	exit(errno);
 }
@@ -37,8 +37,8 @@ int valcard(card *c) {
 // Check for valid operation
 static int chops(const char *cop) {
 
-	char vops[7][7] = {"create", "import", "export", "help",
-		"phone", "mail", "all"};
+	char vops[8][7] = {"create", "import", "export", "help",
+		"phone", "mail", "new", "all"};
 
 	int opnum = sizeof(vops) / sizeof(vops[0]);
 
@@ -74,7 +74,7 @@ static int getindex(sqlite3 *db, const int verb) {
 	char *sql = calloc(BBCH, sizeof(char));
 	sqlite3_stmt *stmt;
 
-	snprintf(sql, BBCH, "SELECT * FROM id;");
+	snprintf(sql, BBCH, "SELECT * FROM ctr;");
 
 	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	if (verb > 1) printf("Query: %s\n", sql);
@@ -84,7 +84,7 @@ static int getindex(sqlite3 *db, const int verb) {
 		if(dbop == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-			if(!strcmp("lid", sqlite3_column_name(stmt, a))) 
+			if(!strcmp("num", sqlite3_column_name(stmt, a))) 
 				ret = atoi((char*)sqlite3_column_text(stmt, a));
 			}
 		}
@@ -112,8 +112,8 @@ static char *ecard(card *c, char *fpath, int psz, int verb) {
 	fprintf(f, "FN:%s\n", c->fn);
 	if(c->uid[0]) fprintf(f, "UID:%s\n", c->uid);
 	if(c->org[0]) fprintf(f, "ORG:%s\n", c->org);
-	for(a = 0; a < c->emnum; a++) fprintf(f, "EMAIL;TYPE=HOME:%s\n", c->em[a]);
-	for(a = 0; a < c->phnum; a++) fprintf(f, "TEL;TYPE=HOME:%s\n", c->ph[a]);
+	for(a = 0; a < c->emnum; a++) fprintf(f, "EMAIL;TYPE=INTERNET:%s\n", c->em[a]);
+	for(a = 0; a < c->phnum; a++) fprintf(f, "TEL;TYPE=VOICE:%s\n", c->ph[a]);
 	fprintf(f, "END:VCARD\n");
 
 	fclose(f);
@@ -183,7 +183,7 @@ int printcard(card *cc, const int op, const int prnum, const int verb) {
 
 	if(!cc->lid) return 1;
 
-	if(op == all) {
+	if(op == all || op == new) {
 		if(verb) printf("%d: ", cc->lid);
 		printf("%s ", cc->fn);
 		if(cc->org[0]) printf("(%s)\n", cc->org);
@@ -346,6 +346,61 @@ static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 	return cc;
 }
 
+// Read line from stdin
+static int readline(char *prompt, char *buf, const int mxlen) {
+
+	memset(buf, 0, mxlen);
+
+	if(prompt) printf("%s: ", prompt);
+	fgets(buf, mxlen, stdin);
+	buf[(strlen(buf) - 1)] = '\0';
+	if(!buf[0]) return 1;
+
+	return 0;
+}
+
+// Read new card from stdin
+static int mknew(sqlite3 *db, card *c, const int verb) {
+
+	char *buf = calloc(MBCH, sizeof(char));
+	char *pstr = calloc(SBCH, sizeof(char));
+
+	int st = 0;
+	unsigned int a = 0;
+
+	st = readline("Full name", buf, NALEN);
+	if(st) return 1;
+	strcpy(c->fn, buf);
+
+	st = randstr(buf, UCLEN);
+	if(st) strcpy(c->uid, buf);
+	c->lid = getindex(db, verb);
+
+	st = readline("Organization", buf, ORLEN);
+	if(!st) strcpy(c->org, buf);
+
+	for(a = 0; a < PHNUM; a++) {
+		snprintf(pstr, SBCH, "Phone %d", a);
+		st = readline(pstr, buf, PHLEN);
+		if(st) break;
+		strcpy(c->ph[a], buf);
+	}
+	c->phnum = a;
+
+	for(a = 0; a < EMNUM; a++) {
+		snprintf(pstr, SBCH, "Email %d", a);
+		st = readline(pstr, buf, EMLEN);
+		if(st) break;
+		strcpy(c->em[a], buf);
+	}
+	c->emnum = a;
+
+	free(buf);
+	free(pstr);
+
+	return 0;
+}
+
 int main(int argc, char *argv[]) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
@@ -442,6 +497,18 @@ int main(int argc, char *argv[]) {
 		for(a = 0; a < NUMCARD; a++)  {
 			if(valcard(cc[a])) printcard(cc[a], op, prnum, verb);
 			else break;
+		}
+
+	} else if(op == new) {
+		// TODO: Default values from argv / optarg
+		mknew(db, cc[0], verb);
+		if(valcard(cc[0])) {
+			dbok = wrdb(db, cc[0], op, verb);
+			if(dbok) printf("SQL Error #: %d\n", dbok);
+			else if(verb) printcard(cc[0], op, prnum, verb);
+		} else {
+			errno = EINVAL;
+			usage(cmd);
 		}
 	}
 

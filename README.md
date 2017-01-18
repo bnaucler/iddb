@@ -4,7 +4,7 @@ An identity database to manage your contacts.
 ## Written by
 Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 
-Compiled and tested on Arch Linux 4.8.
+Compiled and tested on Arch Linux 4.8 and MacOS Sierra.
 
 ## Why iddb?
 No reason. Use abook / khard instead.

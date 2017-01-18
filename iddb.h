@@ -27,6 +27,7 @@
 #define NALEN 128
 #define ORLEN 128
 #define ULEN 64
+#define UCLEN 20
 
 #define EMLEN 128
 #define PHLEN 20
@@ -58,7 +59,7 @@
 #define FCHAR '~'
 
 // Global variables
-typedef enum op {create, import, export, help, phone, mail, all} op;
+typedef enum op {create, import, export, help, phone, mail, new, all} op;
 
 typedef struct card {
 	int lid;
