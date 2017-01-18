@@ -24,7 +24,7 @@ int usage(const char *cmd) {
 	printf("Possible commands are:\n");
 	printf("c[reate], i[mport], e[xport], h[elp], p[hone], m[ail], n[ew], a[ll]\n");
 
-	exit(errno);
+	return errno;
 }
 
 // Validate card
@@ -340,32 +340,26 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	char *buf = calloc(MBCH, sizeof(char));
 	char *pstr = calloc(SBCH, sizeof(char));
 
-	int st = 0;
 	unsigned int a = 0;
 
-	st = readline("Full name", buf, NALEN);
-	if(st) return 1;
+	if(readline("Full name", buf, NALEN)) return 1;
 	strcpy(c->fn, buf);
 
-	st = randstr(buf, UCLEN);
-	if(st) strcpy(c->uid, buf);
+	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 	c->lid = getindex(db, verb);
 
-	st = readline("Organization", buf, ORLEN);
-	if(!st) strcpy(c->org, buf);
+	if(!readline("Organization", buf, ORLEN)) strcpy(c->org, buf);
 
 	for(a = 0; a < PHNUM; a++) {
 		snprintf(pstr, SBCH, "Phone %d", a);
-		st = readline(pstr, buf, PHLEN);
-		if(st) break;
+		if(readline(pstr, buf, PHLEN)) break;
 		strcpy(c->ph[a], buf);
 	}
 	c->phnum = a;
 
 	for(a = 0; a < EMNUM; a++) {
 		snprintf(pstr, SBCH, "Email %d", a);
-		st = readline(pstr, buf, EMLEN);
-		if(st) break;
+		if(readline(pstr, buf, EMLEN)) break;
 		strcpy(c->em[a], buf);
 	}
 	c->emnum = a;
@@ -407,27 +401,27 @@ int main(int argc, char *argv[]) {
 				break;
 
 			default:
-				usage(cmd);
+				return usage(cmd);
 				break;
 		}
 	}
 
 	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
-	if(errno) usage(cmd);
+	if(errno) return usage(cmd);
 
 	strncpy(cop, argv[optind], MBCH);
 	op = chops(cop);
 	if(op < 0) errno = EINVAL;
-	if(errno) usage(cmd);
+	if(errno) return usage(cmd);
 
 	dbok = sqlite3_open(DBNAME, &db);
 	if(dbok) errno = ENOENT;
-	// if(errno) usage(cmd);
+	// if(errno) return usage(cmd);
 
 	if(op == create) {
 		if (ctable(db)) {
 			errno = EEXIST; // TODO: Better error messages..
-			usage(cmd);
+			return usage(cmd);
 		} else {
 			printf("Database %s created successfully\n", DBNAME);
 			return 0;
@@ -443,13 +437,13 @@ int main(int argc, char *argv[]) {
 
 	// Initiate operations TODO: create new func()
 	if(op == help) {
-		usage(cmd);
+		return usage(cmd);
 
 	} else if(op == import) {
 		FILE *f = fopen(argv[(optind + 1)], "r");
 		if(f == NULL) {
 			errno = ENOENT;
-			usage(cmd);
+			return usage(cmd);
 		} 
 		icard(cc[0], f, db, verb);
 		dbok = wrdb(db, cc[0], op, verb);
@@ -483,7 +477,7 @@ int main(int argc, char *argv[]) {
 			else if(verb) printcard(cc[0], op, prnum, verb);
 		} else {
 			errno = EINVAL;
-			usage(cmd);
+			return usage(cmd);
 		}
 	}
 
