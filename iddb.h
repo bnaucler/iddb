@@ -18,6 +18,7 @@
 #include <libgen.h>
 #include <errno.h>
 #include <ctype.h>
+#include <limits.h>
 #include <string.h>
 #include <sqlite3.h>
 
@@ -59,7 +60,8 @@
 #define FCHAR '~'
 
 // Global variables
-typedef enum op {create, import, export, help, phone, mail, new, all} op;
+typedef enum op {create, delete, import, export, help, phone, mail, new, all} op;
+typedef enum svar {lid, uid, fn, org, em, ph} svar;
 
 typedef struct card {
 	int lid;
@@ -81,5 +83,6 @@ int strst(const char *str, const char *key);
 int randstr(char *str, const int len);
 int readline(char *prompt, char *buf, const int mxlen);
 char *robj(char *buf, const char *key);
+int matoi(char *str);
 
 #endif

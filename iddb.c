@@ -22,7 +22,7 @@ int usage(const char *cmd) {
 	printf("%s %s - usage:\n", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
 	printf("Possible commands are:\n");
-	printf("c[reate], i[mport], e[xport], h[elp], p[hone], m[ail], n[ew], a[ll]\n");
+	printf("c[reate], d[elete], i[mport], e[xport], h[elp], p[hone], m[ail], n[ew], a[ll]\n");
 
 	return errno;
 }
@@ -37,7 +37,7 @@ int valcard(card *c) {
 // Check for valid operation
 static int chops(const char *cop) {
 
-	char vops[8][7] = {"create", "import", "export", "help",
+	char vops[9][7] = {"create", "delete", "import", "export", "help",
 		"phone", "mail", "new", "all"};
 
 	int opnum = sizeof(vops) / sizeof(vops[0]);
@@ -301,7 +301,46 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 	return cc;
 }
 
-// Return entry from database (TODO: Separate to deck and single)
+// Create SQL search string
+static int mksqlstr(int svar, char *sql, char *str) {
+
+	if(!str) {
+		snprintf(sql, BBCH, "SELECT * FROM id;");
+		return 0;
+	}
+
+	switch(svar) {
+		case lid:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", matoi(str));
+		break;
+
+		case uid:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE uid LIKE '%%%s%%';", str);
+		break;
+
+		case fn:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
+		break;
+
+		case org:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE org LIKE '%%%s%%';", str);
+		break;
+
+		case ph:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE ph LIKE '%%%s%%';", str);
+		break;
+
+		case em:
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE em LIKE '%%%s%%';", str);
+		break;
+
+	}
+
+	return 0;
+}
+
+// Return entry from database (TODO: Separate deck / single
+// and make multiple searches to fill deck)
 static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -309,8 +348,7 @@ static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
 
 	sqlite3_stmt *stmt;
 
-	if(str == NULL) snprintf(sql, BBCH, "SELECT * FROM id;");
-	else snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
+	mksqlstr(fn, sql, str);
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
@@ -479,6 +517,7 @@ int main(int argc, char *argv[]) {
 			errno = EINVAL;
 			return usage(cmd);
 		}
+	} else if(op == delete) {
 	}
 
 	free(cmd);
