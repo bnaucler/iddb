@@ -4,6 +4,7 @@
 #include <string.h>
 #include <time.h>
 #include <ctype.h>
+#include <limits.h>
 
 // Return 0 if string starts with key
 int strst(const char *str, const char *key) {
@@ -58,4 +59,19 @@ char *robj(char *buf, const char *key) {
 	while(!isalnum(buf[p])) buf[p--] = '\0';
 
 	return buf;
+}
+
+// Overflow protected atoi returning -1 or -2 on error
+int matoi(char *str) {
+
+	int len = strlen(str);
+	unsigned int a = 0;
+	char **dump = calloc(10, sizeof(char));
+
+	for(a = 0; a < len; a++) { if(!isdigit(str[a])) return -1; }
+	long lret = strtol(str, dump, 10);
+	free(dump);
+
+	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
+	else return -2;
 }
