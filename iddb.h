@@ -83,6 +83,6 @@ int strst(const char *str, const char *key);
 int randstr(char *str, const int len);
 int readline(char *prompt, char *buf, const int mxlen);
 char *robj(char *buf, const char *key);
-int matoi(char *str);
+int matoi(const char *str);
 
 #endif

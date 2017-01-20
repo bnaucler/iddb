@@ -19,10 +19,11 @@ int usage(const char *cmd) {
 
 	if (errno) printf("Error: %s\n", strerror(errno));
 
-	printf("%s %s - usage:\n", cmd, VER);
+	printf("%s %s - usage: ", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
-	printf("Possible commands are:\n");
-	printf("c[reate], d[elete], i[mport], e[xport], h[elp], p[hone], m[ail], n[ew], a[ll]\n");
+	printf("Available commands:\n");
+	printf("c[reate], d[elete], i[mport], e[xport], h[elp]\n" 
+			"p[hone], m[ail], n[ew], a[ll]\n");
 
 	return errno;
 }
@@ -73,7 +74,7 @@ static int getindex(sqlite3 *db, const int verb) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
 			if(!strcmp("num", sqlite3_column_name(stmt, a))) 
-				ret = atoi((char*)sqlite3_column_text(stmt, a));
+				ret = matoi((char*)sqlite3_column_text(stmt, a));
 			}
 		}
 	}
@@ -171,7 +172,7 @@ int printcard(card *cc, const int op, const int prnum, const int verb) {
 
 	if(!cc->lid) return 1;
 
-	if(op == all || op == new) {
+	if(op == all || op == new || op == delete) {
 		if(verb) printf("%d: ", cc->lid);
 		printf("%s ", cc->fn);
 		if(cc->org[0]) printf("(%s)\n", cc->org);
@@ -185,13 +186,13 @@ int printcard(card *cc, const int op, const int prnum, const int verb) {
 		printf("\n");
 
 	} else if(op == mail) {
-		if(verb) printf("%s\n", cc->fn);
+		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
 		for(a = 0; a < cc->emnum && a < prnum; a++) {
 			if(verb) printf("email %d: ", a);
 			printf("%s\n", cc->em[a]);
 		}
 	} else if(op == phone) {
-		if(verb) printf("%s\n", cc->fn);
+		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
 		for(a = 0; a < cc->phnum && a < prnum; a++) {
 			if(verb) printf("phone %d: ", a);
 			printf("%s\n", cc->ph[a]);
@@ -268,7 +269,7 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 
 	unsigned int a = 0;
 
-	if(!strcmp("lid", cn)) cc->lid = atoi(ct);
+	if(!strcmp("lid", cn)) cc->lid = matoi(ct);
 	if(!strcmp("uid", cn)) strcpy(cc->uid, ct);
 	if(!strcmp("fn", cn)) strcpy(cc->fn, ct);
 	if(!strcmp("org", cn)) strcpy(cc->org, ct);
@@ -341,14 +342,14 @@ static int mksqlstr(int svar, char *sql, char *str) {
 
 // Return entry from database (TODO: Separate deck / single
 // and make multiple searches to fill deck)
-static card **searchdb(sqlite3 *db, card **cc, char *str, int verb) {
+static card **searchdb(sqlite3 *db, card **cc, char *str, int svar, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	unsigned int cci = 0;
 
 	sqlite3_stmt *stmt;
 
-	mksqlstr(fn, sql, str);
+	mksqlstr(svar, sql, str);
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
@@ -408,6 +409,35 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	return 0;
 }
 
+// Change card LID from plid to nlid
+static int mvcard(sqlite3 *db, int plid, int nlid) {
+
+	char *sql = calloc(BBCH, sizeof(char));
+	char *err = 0;
+
+	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
+
+	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	free(sql);
+	return dbok;
+}
+
+// Deletes card #lid from the database
+static int delcard(sqlite3 *db, int lid, int verb) {
+
+	int last = getindex(db, verb);
+	char *sql = calloc(BBCH, sizeof(char));
+	char *err = 0;
+
+	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", lid);
+	if(last != lid) { if(mvcard(db, lid, last)) return -1; }
+	wrindex(db, --last, verb);
+
+	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	free(sql);
+	return dbok;
+}
+
 int main(int argc, char *argv[]) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
@@ -420,17 +450,23 @@ int main(int argc, char *argv[]) {
 	int verb = 0;
 	int prnum = NUMCARD;
 
+	int svar = fn;
+
 	unsigned int a = 0;
 
 	int optc;
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
-	while((optc = getopt(argc, argv, "n:v")) != -1) {
+	while((optc = getopt(argc, argv, "hn:v")) != -1) {
 		switch (optc) {
 
+			case 'h':
+				return usage(cmd);
+				break;
+
 			case 'n':
-				prnum = atoi(optarg);
+				prnum = matoi(optarg);
 				if(prnum > NUMCARD) prnum = NUMCARD;
 				break;
 
@@ -489,7 +525,7 @@ int main(int argc, char *argv[]) {
 		fclose(f);
 
 	} else if(op == export) { 
-		searchdb(db, cc, argv[(optind + 1)], verb);
+		searchdb(db, cc, argv[(optind + 1)], svar, verb);
 		char *fpath = calloc(MBCH, sizeof(char));
 		for(a = 0; a < prnum; a++) {
 			if(valcard(cc[a])) {
@@ -500,7 +536,7 @@ int main(int argc, char *argv[]) {
 		free(fpath);
 
 	} else if(op == phone || op == mail || op == all) {
-		searchdb(db, cc, argv[(optind + 1)], verb);
+		searchdb(db, cc, argv[(optind + 1)], svar, verb);
 		for(a = 0; a < NUMCARD; a++)  {
 			if(valcard(cc[a])) printcard(cc[a], op, prnum, verb);
 			else break;
@@ -518,6 +554,17 @@ int main(int argc, char *argv[]) {
 			return usage(cmd);
 		}
 	} else if(op == delete) {
+		svar = lid;
+		searchdb(db, cc, argv[(optind + 1)], svar, verb);
+		if(valcard(cc[0])) {
+			dbok = delcard(db, cc[0]->lid, verb);
+			if(verb) {
+				printcard(cc[0], op, prnum, 2);
+				printf("Deleted card:\n");
+			}
+		} else {
+			printf("Found no contact with ID #%d.\n", matoi(argv[(optind + 1)]));
+		}
 	}
 
 	free(cmd);

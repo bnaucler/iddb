@@ -62,7 +62,7 @@ char *robj(char *buf, const char *key) {
 }
 
 // Overflow protected atoi returning -1 or -2 on error
-int matoi(char *str) {
+int matoi(const char *str) {
 
 	int len = strlen(str);
 	unsigned int a = 0;
