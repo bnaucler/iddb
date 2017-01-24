@@ -1,5 +1,6 @@
 iddb
 *.db
 *.sl3
+bak/*
 vcf/*
 exp/*
