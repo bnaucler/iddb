@@ -166,7 +166,7 @@ static int ctable(sqlite3 *db) {
 }
 
 // Print card to stdout
-int printcard(card *cc, const int op, const int prnum, const int verb) {
+int printcard(card *cc, const int op, const int mxnum, const int verb) {
 
 	unsigned int a = 0;
 
@@ -179,21 +179,21 @@ int printcard(card *cc, const int op, const int prnum, const int verb) {
 		else printf("\n");
 		if(cc->uid[0] && verb) printf("UID: %s\n", cc->uid);
 
-		for(a = 0; a < cc->emnum && a < prnum; a++) 
+		for(a = 0; a < cc->emnum && a < mxnum; a++) 
 			printf("email %d: %s\n", a, cc->em[a]);
-		for(a = 0; a < cc->phnum && a < prnum; a++)
+		for(a = 0; a < cc->phnum && a < mxnum; a++)
 			printf("phone %d: %s\n", a, cc->ph[a]);
 		printf("\n");
 
 	} else if(op == mail) {
 		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
-		for(a = 0; a < cc->emnum && a < prnum; a++) {
+		for(a = 0; a < cc->emnum && a < mxnum; a++) {
 			if(verb) printf("email %d: ", a);
 			printf("%s\n", cc->em[a]);
 		}
 	} else if(op == phone) {
 		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
-		for(a = 0; a < cc->phnum && a < prnum; a++) {
+		for(a = 0; a < cc->phnum && a < mxnum; a++) {
 			if(verb) printf("phone %d: ", a);
 			printf("%s\n", cc->ph[a]);
 		}
@@ -250,9 +250,9 @@ int cmpcard(const card *c1, const card *c2) {
 
 	unsigned int a = 0;
 
-	if(c1->uid != c2->uid) return 1;
-	if(c1->fn != c2->fn) return 2;
-	if(c1->org != c2->org) return 3;
+	if(strncmp(c1->uid, c2->uid, ULEN)) return 1;
+	if(strncmp(c1->fn, c2->fn, NALEN)) return 2;
+	if(strncmp(c1->org, c2->org, ORLEN)) return 2;
 	if(c1->phnum != c2->phnum) return 4;
 	if(c1->emnum != c2->emnum) return 5;
 
@@ -266,7 +266,6 @@ int cmpcard(const card *c1, const card *c2) {
 static card *readid(card *cc, const char *cn, const char *ct) {
 
 	char *buf = calloc(BBCH, sizeof(char));
-
 	unsigned int a = 0;
 
 	if(!strcmp("lid", cn)) cc->lid = matoi(ct);
@@ -305,11 +304,6 @@ static card *readid(card *cc, const char *cn, const char *ct) {
 // Create SQL search string
 static int mksqlstr(int svar, char *sql, char *str) {
 
-	if(!str) {
-		snprintf(sql, BBCH, "SELECT * FROM id;");
-		return 0;
-	}
-
 	switch(svar) {
 		case lid:
 		snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", matoi(str));
@@ -340,33 +334,83 @@ static int mksqlstr(int svar, char *sql, char *str) {
 	return 0;
 }
 
-// Return entry from database (TODO: Separate deck / single
-// and make multiple searches to fill deck)
-static card **searchdb(sqlite3 *db, card **cc, char *str, int svar, int verb) {
+// Copy card by value (TODO: error checking)
+static int cpcard(card *dc, const card *sc) {
 
-	char *sql = calloc(BBCH, sizeof(char));
-	unsigned int cci = 0;
+	unsigned int a = 0;
 
+	if(sc->lid > 0) dc->lid = sc->lid;
+	if(sc->uid[0]) strncpy(dc->uid, sc->uid, ULEN);
+	strncpy(dc->fn, sc->fn, NALEN);
+	dc->phnum = sc->phnum;
+	dc->emnum = sc->emnum;
+	if(sc->org[0]) strncpy(dc->org, sc->org, ORLEN);
+
+	for(a = 0; a < sc->phnum; a++) strncpy(dc->ph[a], sc->ph[a], PHLEN);
+	for(a = 0; a < sc->emnum; a++) strncpy(dc->em[a], sc->em[a], EMLEN);
+
+	return 0;
+}
+
+// Return entry from database 
+static int searchdb(sqlite3 *db, card **cc, char *sql, 
+		unsigned int cci, int mxnum, int verb) {
+
+	card *tmpc = calloc(1, sizeof(card));
 	sqlite3_stmt *stmt;
-
-	mksqlstr(svar, sql, str);
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	unsigned int a = 0;
+	unsigned int a = 0, isdbl = 0;
 
-	if (dbok && verb) printf("SQL error: %d\n", dbok);
+	if (dbok && verb) fprintf(stderr, "SQL error: %d\n", dbok);
 
 	while((dbok = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbok == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-				readid(cc[cci], sqlite3_column_name(stmt, a),
+				readid(tmpc, sqlite3_column_name(stmt, a),
 						(char*)sqlite3_column_text(stmt, a));
 			}
-			if(cci++ > NUMCARD) return cc;
 		}
+
+		for(a = 0; a < cci; a++) { if(!cmpcard(tmpc, cc[a])) isdbl++; }
+
+		if(!isdbl) {
+			cpcard(cc[cci++], tmpc);
+			if(cci > mxnum) return cci;
+		}
+		isdbl = 0;
+	}
+
+	free(tmpc);
+	return cci;
+}
+
+// Create deck of cards - init search(es)
+static card **mkdeck(sqlite3 *db, card **cc, char *str, int svar, 
+		int mxnum, int verb) {
+
+	char *sql = calloc(BBCH, sizeof(char));
+	unsigned int a = 0, cci = 0;
+
+	if(!str) {
+		snprintf(sql, BBCH, "SELECT * FROM id;");
+		searchdb(db, cc, sql, cci, mxnum, verb);
+		return cc;
+
+	} else if (svar < 0) {
+		for(a = 0; a < 6; a++) {
+			if(cci >= mxnum) return cc;
+			mksqlstr(a, sql, str);
+			cci = searchdb(db, cc, sql, cci, mxnum, verb);
+		}
+	
+	} else {
+		mksqlstr(svar, sql, str);
+		searchdb(db, cc, sql, cci, mxnum, verb);
+		return cc;
 	}
 
 	free(sql);
@@ -445,12 +489,10 @@ int main(int argc, char *argv[]) {
 
 	sqlite3 *db;
 
-	int op = 0;
-	int dbok = 0;
-	int verb = 0;
-	int prnum = NUMCARD;
+	int op = 0, dbok = 0, verb = 0;
+	int mxnum = NUMCARD;
 
-	int svar = fn;
+	int svar = -1;
 
 	unsigned int a = 0;
 
@@ -466,8 +508,8 @@ int main(int argc, char *argv[]) {
 				break;
 
 			case 'n':
-				prnum = matoi(optarg);
-				if(prnum > NUMCARD) prnum = NUMCARD;
+				mxnum = matoi(optarg);
+				if(mxnum > NUMCARD) mxnum = NUMCARD;
 				break;
 
 			case 'v':
@@ -525,9 +567,9 @@ int main(int argc, char *argv[]) {
 		fclose(f);
 
 	} else if(op == export) { 
-		searchdb(db, cc, argv[(optind + 1)], svar, verb);
+		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		char *fpath = calloc(MBCH, sizeof(char));
-		for(a = 0; a < prnum; a++) {
+		for(a = 0; a < mxnum; a++) {
 			if(valcard(cc[a])) {
 				ecard(cc[a], fpath, MBCH, verb);
 				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
@@ -536,9 +578,9 @@ int main(int argc, char *argv[]) {
 		free(fpath);
 
 	} else if(op == phone || op == mail || op == all) {
-		searchdb(db, cc, argv[(optind + 1)], svar, verb);
+		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		for(a = 0; a < NUMCARD; a++)  {
-			if(valcard(cc[a])) printcard(cc[a], op, prnum, verb);
+			if(valcard(cc[a])) printcard(cc[a], op, mxnum, verb);
 			else break;
 		}
 
@@ -548,18 +590,18 @@ int main(int argc, char *argv[]) {
 		if(valcard(cc[0])) {
 			dbok = wrdb(db, cc[0], op, verb);
 			if(dbok) printf("SQL Error #: %d\n", dbok);
-			else if(verb) printcard(cc[0], op, prnum, verb);
+			else if(verb) printcard(cc[0], op, mxnum, verb);
 		} else {
 			errno = EINVAL;
 			return usage(cmd);
 		}
 	} else if(op == delete) {
 		svar = lid;
-		searchdb(db, cc, argv[(optind + 1)], svar, verb);
+		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		if(valcard(cc[0])) {
 			dbok = delcard(db, cc[0]->lid, verb);
 			if(verb) {
-				printcard(cc[0], op, prnum, 2);
+				printcard(cc[0], op, mxnum, 2);
 				printf("Deleted card:\n");
 			}
 		} else {
