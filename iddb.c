@@ -226,8 +226,6 @@ int wrdb(sqlite3 *db, card *cc, const int op, const int verb) {
 
 	char *err = 0;
 
-	if(verb) printcard(cc, op, NUMCARD, verb);
-
 	snprintf(sql, BBCH, "INSERT INTO id VALUES"
 			"(%d, '%s', '%s', '%s',  '%s', '%s');",
 			++cc->lid, cc->uid, cc->fn, cc->org,
@@ -379,7 +377,7 @@ static int searchdb(sqlite3 *db, card **cc, char *sql,
 
 		if(!isdbl) {
 			cpcard(cc[cci++], tmpc);
-			if(cci > mxnum) return cci;
+			if(cci >= mxnum) return cci;
 		}
 		isdbl = 0;
 	}
@@ -545,8 +543,8 @@ int main(int argc, char *argv[]) {
 	}
 
 	// Create a deck of cards
-	card **cc = calloc(NUMCARD, sizeof(card));
-	for(a = 0; a < NUMCARD; a++) {
+	card **cc = calloc(mxnum, sizeof(card));
+	for(a = 0; a < mxnum; a++) {
 		cc[a] = calloc(1, sizeof(card));
 		cc[a]->lid = -1;
 	}
@@ -564,6 +562,7 @@ int main(int argc, char *argv[]) {
 		icard(cc[0], f, db, verb);
 		dbok = wrdb(db, cc[0], op, verb);
 		if(dbok) printf("SQL Error #: %d\n", dbok);
+		else if(verb) printcard(cc[0], op, mxnum, verb);
 		fclose(f);
 
 	} else if(op == export) { 
@@ -579,7 +578,7 @@ int main(int argc, char *argv[]) {
 
 	} else if(op == phone || op == mail || op == all) {
 		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
-		for(a = 0; a < NUMCARD; a++)  {
+		for(a = 0; a < mxnum; a++)  {
 			if(valcard(cc[a])) printcard(cc[a], op, mxnum, verb);
 			else break;
 		}
