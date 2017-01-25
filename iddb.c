@@ -493,6 +493,19 @@ static card **dalloc(int num, int sz) {
 	return cc;
 }
 
+// Execute create operation
+static int exec_create(sqlite3 *db, const char *cmd) {
+
+	if (ctable(db)) {
+		errno = EEXIST; // TODO: Better error messages..
+		return usage(cmd);
+
+	} else {
+		printf("Database %s created successfully\n", DBNAME);
+		return 0;
+	}
+}
+
 // Execute import operation
 static int exec_import(sqlite3 *db, char **args, const char *cmd,
 	const int op, const int numf, const int mxnum, const int verb) {
@@ -557,8 +570,9 @@ static int exec_new(sqlite3 *db, const char *cmd, const int op,
 	const int mxnum, const int verb) {
 
 	int dbrc = 0;
-
 	card *c = calloc(1, sizeof(card));
+
+	setsrand();
 	mknew(db, c, verb);
 
 	if(valcard(c)) {
@@ -587,8 +601,8 @@ static int exec_delete(sqlite3 *db, char **args, const int numarg,
 	if(valcard(cc[0])) {
 		delcard(db, cc[0]->lid, verb);
 		if(verb) {
-			printcard(cc[0], op, mxnum, 2);
 			printf("Deleted card:\n");
+			printcard(cc[0], op, mxnum, 2);
 		}
 	} else {
 		printf("Found no contact with ID #%d.\n", matoi(args[0]));
@@ -629,14 +643,7 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			return usage(cmd);
 
 		case create:
-			if (ctable(db)) {
-				errno = EEXIST; // TODO: Better error messages..
-				return usage(cmd);
-
-			} else {
-				printf("Database %s created successfully\n", DBNAME);
-			}
-			break;
+			return exec_create(db, cmd);
 
 		case import:
 			return exec_import(db, args, cmd, op, alen, mxnum, verb);
@@ -653,8 +660,6 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 		default:
 			return exec_search(db, args, alen, op, svar, mxnum, verb);
 	}
-
-	return 0;
 }
 
 int main(int argc, char **argv) {
