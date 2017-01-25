@@ -147,23 +147,23 @@ static int ctable(sqlite3 *db) {
 
 	char *sql = calloc(DBCH, sizeof(char));
 	char *err = 0;
-	int dbok = 0;
+	int dbrc = 0;
 
 	strncpy(sql, "DROP TABLE IF EXISTS id;"
 		"CREATE TABLE id(lid INT, uid TEXT, fn TEXT,"
 		" org TEXT, ph TEXT, em TEXT);", DBCH);
-	dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
-	if(!dbok) {
+	if(!dbrc) {
 		strncpy(sql, "DROP TABLE IF EXISTS ctr;"
 			"CREATE TABLE ctr(addr INT, num INT);", DBCH);
-		dbok = sqlite3_exec(db, sql, 0, 0, &err);
-		if(!dbok) strncpy(sql, "INSERT INTO ctr VALUES(0, 0);", BBCH);
-		dbok = sqlite3_exec(db, sql, 0, 0, &err);
+		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+		if(!dbrc) strncpy(sql, "INSERT INTO ctr VALUES(0, 0);", BBCH);
+		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 	}
 
 	free(sql);
-	return dbok;
+	return dbrc;
 }
 
 // Print card to stdout
@@ -235,13 +235,13 @@ int wrdb(sqlite3 *db, card *cc, const int op, const int verb) {
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
-	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
-	if(!dbok) wrindex(db, cc->lid, verb);
+	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+	if(!dbrc) wrindex(db, cc->lid, verb);
 
 	free(sql);
 	free(pbuf);
 	free(mbuf);
-	return dbok;
+	return dbrc;
 }
 
 // Return 0 if c1 and c2 are identical (TODO: implement)
@@ -360,13 +360,13 @@ static int searchdb(sqlite3 *db, card **cc, char *sql,
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
-	int dbok = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+	int dbrc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	unsigned int a = 0, isdbl = 0;
 
-	if (dbok && verb) fprintf(stderr, "SQL error: %d\n", dbok);
+	if (dbrc && verb) fprintf(stderr, "SQL error: %d\n", dbrc);
 
-	while((dbok = sqlite3_step(stmt)) != SQLITE_DONE) {
-		if(dbok == SQLITE_ROW) {
+	while((dbrc = sqlite3_step(stmt)) != SQLITE_DONE) {
+		if(dbrc == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
 				readid(tmpc, sqlite3_column_name(stmt, a),
@@ -458,9 +458,9 @@ static int mvcard(sqlite3 *db, int plid, int nlid) {
 
 	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
 
-	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 	free(sql);
-	return dbok;
+	return dbrc;
 }
 
 // Deletes card #lid from the database
@@ -474,9 +474,9 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 	if(last != lid) { if(mvcard(db, lid, last)) return -1; }
 	wrindex(db, --last, verb);
 
-	int dbok = sqlite3_exec(db, sql, 0, 0, &err);
+	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 	free(sql);
-	return dbok;
+	return dbrc;
 }
 
 // Allocate memory for a deck of num cards
@@ -492,27 +492,119 @@ static card **deckalloc(int num, int sz) {
 	return cc;
 }
 
-int main(int argc, char *argv[]) {
+// Execute operations
+static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
+	const int mxnum, const int alen, char **args, const int verb) {
+
+	card **cc;
+	int dbrc = 0, cci = 0;
+	unsigned int a = 0;
+
+	switch(op) {
+
+		case help:
+			return usage(cmd);
+			break;
+
+		case create:
+			if (ctable(db)) {
+				errno = EEXIST; // TODO: Better error messages..
+				return usage(cmd);
+
+			} else {
+				printf("Database %s created successfully\n", DBNAME);
+			}
+			break;
+
+		case import:
+			errno = 0;
+			DIR *d = opendir(args[0]);
+			if(d && !errno) {
+				printf("DEBUG: BATCH IMPORT\n");
+				exit(0);
+			} else {
+				cc = deckalloc(1, sizeof(card));
+				FILE *f = fopen(args[0], "r");
+				if(f == NULL) {
+					errno = ENOENT;
+					return usage(cmd);
+				} 
+				icard(cc[0], f, db, verb);
+				dbrc = wrdb(db, cc[0], op, verb);
+				if(dbrc) printf("SQL Error #: %d\n", dbrc);
+				else if(verb) printcard(cc[0], op, mxnum, verb);
+				fclose(f);
+			}
+			break;
+
+		case export:
+			cc = deckalloc(mxnum, sizeof(card));
+			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
+			char *fpath = calloc(MBCH, sizeof(char));
+			for(a = 0; a < cci; a++) {
+				ecard(cc[a], fpath, MBCH, verb);
+				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
+			}
+			free(fpath);
+			break;
+
+		case all:
+		case phone:
+		case mail:
+			cc = deckalloc(mxnum, sizeof(card));
+			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
+			for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
+			break;
+
+		case new:
+			cc = deckalloc(1, sizeof(card));
+			// TODO: Default values from argv / optarg
+			mknew(db, cc[0], verb);
+			if(valcard(cc[0])) {
+				dbrc = wrdb(db, cc[0], op, verb);
+				if(dbrc) printf("SQL Error #: %d\n", dbrc);
+				else if(verb) printcard(cc[0], op, mxnum, verb);
+			} else {
+				errno = EINVAL;
+				return usage(cmd);
+			}
+			break;
+
+		case delete:
+			cc = deckalloc(1, sizeof(card));
+			svar = lid;
+			mkdeck(db, cc, args[0], svar, mxnum, verb);
+			if(valcard(cc[0])) {
+				dbrc = delcard(db, cc[0]->lid, verb);
+				if(verb) {
+					printcard(cc[0], op, mxnum, 2);
+					printf("Deleted card:\n");
+				}
+			} else {
+				printf("Found no contact with ID #%d.\n",
+					matoi(args[0]));
+			}
+		}
+
+	free(cc);
+	return 0;
+}
+
+int main(int argc, char **argv) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
-	char *cop = calloc(MBCH, sizeof(char));
-	card **cc;
 
 	sqlite3 *db;
 
-	int op = 0, dbok = 0, verb = 0, cci = 0;
+	int op = 0, dbrc = 0, verb = 0, ret = 0;
 	int mxnum = NUMCARD;
-
-	int svar = -1;
-
-	unsigned int a = 0;
-
+	int svar = -1; // TODO: implement via getopt
 	int optc;
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
 	while((optc = getopt(argc, argv, "hn:v")) != -1) {
-		switch (optc) {
+		switch(optc) {
 
 			case 'h':
 				return usage(cmd);
@@ -536,96 +628,25 @@ int main(int argc, char *argv[]) {
 	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
 	if(errno) return usage(cmd);
 
-	strncpy(cop, argv[optind], MBCH);
-	op = chops(cop);
+	// Set and verify operation
+	op = chops(argv[optind]);
 	if(op < 0) errno = EINVAL;
 	if(errno) return usage(cmd);
 
-	dbok = sqlite3_open(DBNAME, &db);
-	if(dbok) errno = ENOENT;
-	// if(errno) return usage(cmd);
+	// Prepare argument list
+	int alen = argc - optind;
+	argv += optind + 1;
 
-	if(op == create) {
-		if (ctable(db)) {
-			errno = EEXIST; // TODO: Better error messages..
-			return usage(cmd);
-		} else {
-			printf("Database %s created successfully\n", DBNAME);
-			return 0;
-			}
-	}
+	// Open database
+	dbrc = sqlite3_open(DBNAME, &db);
+	if(dbrc) errno = ENOENT;
+	if(errno) return usage(cmd);
 
-	// Initiate operations TODO: create new func()
-	if(op == help) {
-		return usage(cmd);
+	// Initiate operations
+	ret = execute(db, op, svar, cmd, mxnum, alen, argv, verb);
 
-	} else if(op == import) {
-		errno = 0;
-		DIR *d = opendir(argv[(optind + 1)]);
-		if(d && !errno) {
-			printf("DEBUG: BATCH IMPORT\n");
-			exit(0);
-		} else {
-			cc = deckalloc(1, sizeof(card));
-			FILE *f = fopen(argv[(optind + 1)], "r");
-			if(f == NULL) {
-				errno = ENOENT;
-				return usage(cmd);
-			} 
-			icard(cc[0], f, db, verb);
-			dbok = wrdb(db, cc[0], op, verb);
-			if(dbok) printf("SQL Error #: %d\n", dbok);
-			else if(verb) printcard(cc[0], op, mxnum, verb);
-			fclose(f);
-		}
-
-	} else if(op == export) { 
-		cc = deckalloc(mxnum, sizeof(card));
-		cci = mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
-		char *fpath = calloc(MBCH, sizeof(char));
-		for(a = 0; a < cci; a++) {
-			ecard(cc[a], fpath, MBCH, verb);
-			if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
-		}
-		free(fpath);
-
-	} else if(op == phone || op == mail || op == all) {
-		cc = deckalloc(mxnum, sizeof(card));
-		cci = mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
-		for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
-
-	} else if(op == new) {
-		cc = deckalloc(1, sizeof(card));
-		// TODO: Default values from argv / optarg
-		mknew(db, cc[0], verb);
-		if(valcard(cc[0])) {
-			dbok = wrdb(db, cc[0], op, verb);
-			if(dbok) printf("SQL Error #: %d\n", dbok);
-			else if(verb) printcard(cc[0], op, mxnum, verb);
-		} else {
-			errno = EINVAL;
-			return usage(cmd);
-		}
-
-	} else if(op == delete) {
-		cc = deckalloc(1, sizeof(card));
-		svar = lid;
-		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
-		if(valcard(cc[0])) {
-			dbok = delcard(db, cc[0]->lid, verb);
-			if(verb) {
-				printcard(cc[0], op, mxnum, 2);
-				printf("Deleted card:\n");
-			}
-		} else {
-			printf("Found no contact with ID #%d.\n",
-				matoi(argv[(optind + 1)]));
-		}
-	}
-
-	free(cc);
+	// Graceful exit
 	free(cmd);
-	free(cop);
 	sqlite3_close(db);
-	return 0;
+	return ret;
 }
