@@ -23,7 +23,7 @@
 #include <string.h>
 #include <sqlite3.h>
 
-#define VER "0.1A"
+#define VER "0.2A"
 #define DBNAME "iddb.sl3"
 
 #define NALEN 128
