@@ -16,6 +16,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <dirent.h>
 #include <errno.h>
 #include <ctype.h>
 #include <limits.h>
@@ -55,7 +56,7 @@
 #define ADDRKEY "ADR"
 
 #define CITEMS 3
-#define NUMCARD 10
+#define NUMCARD 1000
 
 #define FCHAR '~'
 

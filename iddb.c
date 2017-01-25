@@ -10,6 +10,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <libgen.h>
+#include <dirent.h>
 #include <errno.h>
 #include <ctype.h>
 #include <string.h>
@@ -480,10 +481,24 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 	return dbok;
 }
 
+// Allocate memory for a deck of num cards
+static card **deckalloc(int num, int sz) {
+
+	card **cc = calloc(num, sz);
+	unsigned int a = 0;
+
+	for(a = 0; a < num; a++) {
+		cc[a] = calloc(1, sz);
+		cc[a]->lid = -1;
+	}
+	return cc;
+}
+
 int main(int argc, char *argv[]) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
 	char *cop = calloc(MBCH, sizeof(char));
+	card **cc;
 
 	sqlite3 *db;
 
@@ -542,30 +557,33 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-	// Create a deck of cards
-	card **cc = calloc(mxnum, sizeof(card));
-	for(a = 0; a < mxnum; a++) {
-		cc[a] = calloc(1, sizeof(card));
-		cc[a]->lid = -1;
-	}
 
 	// Initiate operations TODO: create new func()
 	if(op == help) {
 		return usage(cmd);
 
 	} else if(op == import) {
-		FILE *f = fopen(argv[(optind + 1)], "r");
-		if(f == NULL) {
-			errno = ENOENT;
-			return usage(cmd);
-		} 
-		icard(cc[0], f, db, verb);
-		dbok = wrdb(db, cc[0], op, verb);
-		if(dbok) printf("SQL Error #: %d\n", dbok);
-		else if(verb) printcard(cc[0], op, mxnum, verb);
-		fclose(f);
+		errno = 0;
+		DIR *d = opendir(argv[(optind + 1)]);
+		if(d && !errno) {
+			printf("DEBUG: BATCH IMPORT\n");
+			exit(0);
+		} else {
+			cc = deckalloc(1, sizeof(card));
+			FILE *f = fopen(argv[(optind + 1)], "r");
+			if(f == NULL) {
+				errno = ENOENT;
+				return usage(cmd);
+			} 
+			icard(cc[0], f, db, verb);
+			dbok = wrdb(db, cc[0], op, verb);
+			if(dbok) printf("SQL Error #: %d\n", dbok);
+			else if(verb) printcard(cc[0], op, mxnum, verb);
+			fclose(f);
+		}
 
 	} else if(op == export) { 
+		cc = deckalloc(mxnum, sizeof(card));
 		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		char *fpath = calloc(MBCH, sizeof(char));
 		for(a = 0; a < mxnum; a++) {
@@ -577,6 +595,7 @@ int main(int argc, char *argv[]) {
 		free(fpath);
 
 	} else if(op == phone || op == mail || op == all) {
+		cc = deckalloc(mxnum, sizeof(card));
 		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		for(a = 0; a < mxnum; a++)  {
 			if(valcard(cc[a])) printcard(cc[a], op, mxnum, verb);
@@ -584,6 +603,7 @@ int main(int argc, char *argv[]) {
 		}
 
 	} else if(op == new) {
+		cc = deckalloc(1, sizeof(card));
 		// TODO: Default values from argv / optarg
 		mknew(db, cc[0], verb);
 		if(valcard(cc[0])) {
@@ -595,6 +615,7 @@ int main(int argc, char *argv[]) {
 			return usage(cmd);
 		}
 	} else if(op == delete) {
+		cc = deckalloc(1, sizeof(card));
 		svar = lid;
 		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		if(valcard(cc[0])) {
@@ -608,6 +629,7 @@ int main(int argc, char *argv[]) {
 		}
 	}
 
+	free(cc);
 	free(cmd);
 	free(cop);
 	sqlite3_close(db);
