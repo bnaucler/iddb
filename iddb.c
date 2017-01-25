@@ -388,7 +388,7 @@ static int searchdb(sqlite3 *db, card **cc, char *sql,
 }
 
 // Create deck of cards - init search(es)
-static card **mkdeck(sqlite3 *db, card **cc, char *str, int svar, 
+static int mkdeck(sqlite3 *db, card **cc, char *str, int svar, 
 		int mxnum, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -396,24 +396,22 @@ static card **mkdeck(sqlite3 *db, card **cc, char *str, int svar,
 
 	if(!str) {
 		snprintf(sql, BBCH, "SELECT * FROM id;");
-		searchdb(db, cc, sql, cci, mxnum, verb);
-		return cc;
+		cci = searchdb(db, cc, sql, cci, mxnum, verb);
 
 	} else if (svar < 0) {
 		for(a = 0; a < 6; a++) {
-			if(cci >= mxnum) return cc;
+			if(cci >= mxnum) return cci;
 			mksqlstr(a, sql, str);
 			cci = searchdb(db, cc, sql, cci, mxnum, verb);
 		}
 	
 	} else {
 		mksqlstr(svar, sql, str);
-		searchdb(db, cc, sql, cci, mxnum, verb);
-		return cc;
+		cci = searchdb(db, cc, sql, cci, mxnum, verb);
 	}
 
 	free(sql);
-	return cc;
+	return cci;
 }
 
 // Read new card from stdin
@@ -502,7 +500,7 @@ int main(int argc, char *argv[]) {
 
 	sqlite3 *db;
 
-	int op = 0, dbok = 0, verb = 0;
+	int op = 0, dbok = 0, verb = 0, cci = 0;
 	int mxnum = NUMCARD;
 
 	int svar = -1;
@@ -557,7 +555,6 @@ int main(int argc, char *argv[]) {
 			}
 	}
 
-
 	// Initiate operations TODO: create new func()
 	if(op == help) {
 		return usage(cmd);
@@ -584,23 +581,18 @@ int main(int argc, char *argv[]) {
 
 	} else if(op == export) { 
 		cc = deckalloc(mxnum, sizeof(card));
-		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
+		cci = mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
 		char *fpath = calloc(MBCH, sizeof(char));
-		for(a = 0; a < mxnum; a++) {
-			if(valcard(cc[a])) {
-				ecard(cc[a], fpath, MBCH, verb);
-				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
-			} else break;
+		for(a = 0; a < cci; a++) {
+			ecard(cc[a], fpath, MBCH, verb);
+			if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
 		}
 		free(fpath);
 
 	} else if(op == phone || op == mail || op == all) {
 		cc = deckalloc(mxnum, sizeof(card));
-		mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
-		for(a = 0; a < mxnum; a++)  {
-			if(valcard(cc[a])) printcard(cc[a], op, mxnum, verb);
-			else break;
-		}
+		cci = mkdeck(db, cc, argv[(optind + 1)], svar, mxnum, verb);
+		for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
 
 	} else if(op == new) {
 		cc = deckalloc(1, sizeof(card));
@@ -614,6 +606,7 @@ int main(int argc, char *argv[]) {
 			errno = EINVAL;
 			return usage(cmd);
 		}
+
 	} else if(op == delete) {
 		cc = deckalloc(1, sizeof(card));
 		svar = lid;
@@ -625,7 +618,8 @@ int main(int argc, char *argv[]) {
 				printf("Deleted card:\n");
 			}
 		} else {
-			printf("Found no contact with ID #%d.\n", matoi(argv[(optind + 1)]));
+			printf("Found no contact with ID #%d.\n",
+				matoi(argv[(optind + 1)]));
 		}
 	}
 
