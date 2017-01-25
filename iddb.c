@@ -475,6 +475,7 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 	wrindex(db, --last, verb);
 
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+
 	free(sql);
 	return dbrc;
 }
@@ -493,13 +494,13 @@ static card **dalloc(int num, int sz) {
 }
 
 // Execute import operation
-static int exec_import(sqlite3 *db, card **cc, char **args, const char *cmd,
+static int exec_import(sqlite3 *db, char **args, const char *cmd,
 	const int op, const int numf, const int mxnum, const int verb) {
 
 	int dbrc = 0;
 	unsigned int a = 0;
 
-	cc = dalloc(numf, sizeof(card));
+	card **cc = dalloc(numf, sizeof(card));
 
 	for(a = 0; a < numf; a++) {
 		DIR *d = opendir(args[a]);
@@ -521,26 +522,12 @@ static int exec_import(sqlite3 *db, card **cc, char **args, const char *cmd,
 		}
 	}
 
+	free(cc);
 	return 0;
 }
 
-// Array to string (TODO: It's hacky. Review)
-char *atostr(char *str, char **arr, const int num) {
-
-	unsigned int a = 0, lsz = BBCH;
-	
-	for(a = 0; a < num; a++) {
-		strncat(str, arr[a], lsz);
-		str[strlen(str)] = ' ';
-		lsz -= (strlen(arr[a]) + 1);
-	}
-	str[(strlen(str) - 1)] = '\0';
-
-	return str;
-}
-
 // Execute export operation
-static int exec_export(sqlite3 *db, card **cc, char **args, const int numarg,
+static int exec_export(sqlite3 *db, char **args, const int numarg,
 	const int svar, const int mxnum, const int verb) {
 
 	unsigned int a = 0, cci = 0;
@@ -548,7 +535,7 @@ static int exec_export(sqlite3 *db, card **cc, char **args, const int numarg,
 	char *sstr = calloc(BBCH, sizeof(char));
 	char *fpath = calloc(MBCH, sizeof(char));
 
-	cc = dalloc(mxnum, sizeof(card));
+	card **cc = dalloc(mxnum, sizeof(card));
 	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
 
 	setsrand();
@@ -561,16 +548,78 @@ static int exec_export(sqlite3 *db, card **cc, char **args, const int numarg,
 
 	free(sstr);
 	free(fpath);
+	free(cc);
+	return 0;
+}
+
+// Execute 'new' operation TODO: Default values from args
+static int exec_new(sqlite3 *db, const char *cmd, const int op,
+	const int mxnum, const int verb) {
+
+	int dbrc = 0;
+
+	card *c = calloc(1, sizeof(card));
+	mknew(db, c, verb);
+
+	if(valcard(c)) {
+		dbrc = wrdb(db, c, op, verb);
+		if(dbrc) printf("SQL Error #: %d\n", dbrc);
+		else if(verb) printcard(c, op, mxnum, verb);
+
+	} else {
+		errno = EINVAL;
+		return usage(cmd);
+	}
+
+	free(c);
+	return 0;
+}
+
+// Execute delete operation
+static int exec_delete(sqlite3 *db, char **args, const int numarg,
+	const int op, const int mxnum, const int verb) {
+
+	int svar = lid;
+
+	card **cc = dalloc(1, sizeof(card));
+
+	mkdeck(db, cc, args[0], svar, mxnum, verb);
+	if(valcard(cc[0])) {
+		delcard(db, cc[0]->lid, verb);
+		if(verb) {
+			printcard(cc[0], op, mxnum, 2);
+			printf("Deleted card:\n");
+		}
+	} else {
+		printf("Found no contact with ID #%d.\n", matoi(args[0]));
+	}
+
+	free(cc);
+	return 0;
+}
+ 
+// Execute search operations (all, phone & mail)
+static int exec_search(sqlite3 *db, char **args, const int numarg,
+	const int op, const int svar, const int mxnum, const int verb) {
+
+	unsigned int a = 0, cci = 0;
+
+	char *sstr = calloc(BBCH, sizeof(char));
+	card **cc = dalloc(mxnum, sizeof(card));
+
+	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
+
+	cci = mkdeck(db, cc, sstr, svar, mxnum, verb);
+	for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
+
+	free(sstr);
+	free(cc);
 	return 0;
 }
 
 // Execute operations
 static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
 	const int mxnum, const int alen, char **args, const int verb) {
-
-	card **cc;
-	int dbrc = 0, cci = 0;
-	unsigned int a = 0;
 
 	errno = 0;
 
@@ -590,46 +639,21 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			break;
 
 		case import:
-			return exec_import(db, cc, args, cmd, op, alen, mxnum, verb);
+			return exec_import(db, args, cmd, op, alen, mxnum, verb);
 
 		case export:
-			return exec_export(db, cc, args, alen, svar, mxnum, verb);
+			return exec_export(db, args, alen, svar, mxnum, verb);
 
 		case new:
-			cc = dalloc(1, sizeof(card));
-			// TODO: Default values from args
-			mknew(db, cc[0], verb);
-			if(valcard(cc[0])) {
-				dbrc = wrdb(db, cc[0], op, verb);
-				if(dbrc) printf("SQL Error #: %d\n", dbrc);
-				else if(verb) printcard(cc[0], op, mxnum, verb);
-			} else {
-				errno = EINVAL;
-				return usage(cmd);
-			}
-			break;
+			return exec_new(db, cmd, op, mxnum, verb);
 
 		case delete:
-			cc = dalloc(1, sizeof(card));
-			svar = lid;
-			mkdeck(db, cc, args[0], svar, mxnum, verb);
-			if(valcard(cc[0])) {
-				dbrc = delcard(db, cc[0]->lid, verb);
-				if(verb) {
-					printcard(cc[0], op, mxnum, 2);
-					printf("Deleted card:\n");
-				}
-			} else {
-				printf("Found no contact with ID #%d.\n", matoi(args[0]));
-			}
+			return exec_delete(db, args, alen, op, mxnum, verb);
 
 		default:
-			cc = dalloc(mxnum, sizeof(card));
-			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
-			for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
+			return exec_search(db, args, alen, op, svar, mxnum, verb);
 	}
 
-	free(cc);
 	return 0;
 }
 

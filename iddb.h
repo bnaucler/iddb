@@ -87,5 +87,6 @@ int readline(char *prompt, char *buf, const int mxlen);
 char *robj(char *buf, const char *key);
 int matoi(const char *str);
 void setsrand();
+char *atostr(char *str, char **arr, const int num);
 
 #endif

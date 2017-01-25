@@ -79,3 +79,18 @@ void setsrand() {
 	time_t t;
 	srand((unsigned) time(&t));
 }
+
+// Array to string (TODO: It's hacky. Review)
+char *atostr(char *str, char **arr, const int num) {
+
+	unsigned int a = 0, lsz = BBCH;
+
+	for(a = 0; a < num; a++) {
+		strncat(str, arr[a], lsz);
+		str[strlen(str)] = ' ';
+		lsz -= (strlen(arr[a]) + 1);
+	}
+	str[(strlen(str) - 1)] = '\0';
+
+	return str;
+}
