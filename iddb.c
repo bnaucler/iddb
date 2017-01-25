@@ -480,7 +480,7 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 }
 
 // Allocate memory for a deck of num cards
-static card **deckalloc(int num, int sz) {
+static card **dalloc(int num, int sz) {
 
 	card **cc = calloc(num, sz);
 	unsigned int a = 0;
@@ -492,6 +492,38 @@ static card **deckalloc(int num, int sz) {
 	return cc;
 }
 
+// Execute import operation
+static int exec_import(sqlite3 *db, card **cc, char **args, const char *cmd,
+	const int op, const int numf, const int mxnum, const int verb) {
+
+	int dbrc = 0;
+	unsigned int a = 0;
+
+	cc = dalloc(numf, sizeof(card));
+
+	for(a = 0; a < numf; a++) {
+		DIR *d = opendir(args[a]);
+		if(d && !errno) {
+			// TODO: Dirent walk
+
+		} else {
+			FILE *f = fopen(args[a], "r");
+			if(f == NULL) {
+				errno = ENOENT;
+				return usage(cmd);
+			} 
+
+			icard(cc[a], f, db, verb);
+			dbrc = wrdb(db, cc[a], op, verb);
+			if(dbrc) printf("SQL Error #: %d\n", dbrc);
+			else if(verb) printcard(cc[0], op, mxnum, verb);
+			fclose(f);
+		}
+	}
+
+	return 0;
+}
+
 // Execute operations
 static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
 	const int mxnum, const int alen, char **args, const int verb) {
@@ -500,11 +532,12 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 	int dbrc = 0, cci = 0;
 	unsigned int a = 0;
 
+	errno = 0;
+
 	switch(op) {
 
 		case help:
 			return usage(cmd);
-			break;
 
 		case create:
 			if (ctable(db)) {
@@ -517,28 +550,10 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			break;
 
 		case import:
-			errno = 0;
-			DIR *d = opendir(args[0]);
-			if(d && !errno) {
-				printf("DEBUG: BATCH IMPORT\n");
-				exit(0);
-			} else {
-				cc = deckalloc(1, sizeof(card));
-				FILE *f = fopen(args[0], "r");
-				if(f == NULL) {
-					errno = ENOENT;
-					return usage(cmd);
-				} 
-				icard(cc[0], f, db, verb);
-				dbrc = wrdb(db, cc[0], op, verb);
-				if(dbrc) printf("SQL Error #: %d\n", dbrc);
-				else if(verb) printcard(cc[0], op, mxnum, verb);
-				fclose(f);
-			}
-			break;
+			return exec_import(db, cc, args, cmd, op, alen, mxnum, verb);
 
 		case export:
-			cc = deckalloc(mxnum, sizeof(card));
+			cc = dalloc(mxnum, sizeof(card));
 			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
 			char *fpath = calloc(MBCH, sizeof(char));
 			for(a = 0; a < cci; a++) {
@@ -551,14 +566,14 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 		case all:
 		case phone:
 		case mail:
-			cc = deckalloc(mxnum, sizeof(card));
+			cc = dalloc(mxnum, sizeof(card));
 			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
 			for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
 			break;
 
 		case new:
-			cc = deckalloc(1, sizeof(card));
-			// TODO: Default values from argv / optarg
+			cc = dalloc(1, sizeof(card));
+			// TODO: Default values from args
 			mknew(db, cc[0], verb);
 			if(valcard(cc[0])) {
 				dbrc = wrdb(db, cc[0], op, verb);
@@ -571,7 +586,7 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			break;
 
 		case delete:
-			cc = deckalloc(1, sizeof(card));
+			cc = dalloc(1, sizeof(card));
 			svar = lid;
 			mkdeck(db, cc, args[0], svar, mxnum, verb);
 			if(valcard(cc[0])) {
@@ -581,8 +596,7 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 					printf("Deleted card:\n");
 				}
 			} else {
-				printf("Found no contact with ID #%d.\n",
-					matoi(args[0]));
+				printf("Found no contact with ID #%d.\n", matoi(args[0]));
 			}
 		}
 
@@ -625,6 +639,7 @@ int main(int argc, char **argv) {
 		}
 	}
 
+	// Break if no argument has been given
 	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
 	if(errno) return usage(cmd);
 
@@ -633,17 +648,17 @@ int main(int argc, char **argv) {
 	if(op < 0) errno = EINVAL;
 	if(errno) return usage(cmd);
 
-	// Prepare argument list
-	int alen = argc - optind;
-	argv += optind + 1;
-
 	// Open database
 	dbrc = sqlite3_open(DBNAME, &db);
 	if(dbrc) errno = ENOENT;
 	if(errno) return usage(cmd);
 
+	// Prepare argument list
+	argc -= optind + 1;
+	argv += optind + 1;
+
 	// Initiate operations
-	ret = execute(db, op, svar, cmd, mxnum, alen, argv, verb);
+	ret = execute(db, op, svar, cmd, mxnum, argc, argv, verb);
 
 	// Graceful exit
 	free(cmd);
