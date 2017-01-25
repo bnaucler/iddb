@@ -524,6 +524,46 @@ static int exec_import(sqlite3 *db, card **cc, char **args, const char *cmd,
 	return 0;
 }
 
+// Array to string (TODO: It's hacky. Review)
+char *atostr(char *str, char **arr, const int num) {
+
+	unsigned int a = 0, lsz = BBCH;
+	
+	for(a = 0; a < num; a++) {
+		strncat(str, arr[a], lsz);
+		str[strlen(str)] = ' ';
+		lsz -= (strlen(arr[a]) + 1);
+	}
+	str[(strlen(str) - 1)] = '\0';
+
+	return str;
+}
+
+// Execute export operation
+static int exec_export(sqlite3 *db, card **cc, char **args, const int numarg,
+	const int svar, const int mxnum, const int verb) {
+
+	unsigned int a = 0, cci = 0;
+
+	char *sstr = calloc(BBCH, sizeof(char));
+	char *fpath = calloc(MBCH, sizeof(char));
+
+	cc = dalloc(mxnum, sizeof(card));
+	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
+
+	setsrand();
+
+	cci = mkdeck(db, cc, sstr, svar, mxnum, verb);
+	for(a = 0; a < cci; a++) {
+		ecard(cc[a], fpath, MBCH, verb);
+		if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
+	}
+
+	free(sstr);
+	free(fpath);
+	return 0;
+}
+
 // Execute operations
 static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
 	const int mxnum, const int alen, char **args, const int verb) {
@@ -553,23 +593,7 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			return exec_import(db, cc, args, cmd, op, alen, mxnum, verb);
 
 		case export:
-			cc = dalloc(mxnum, sizeof(card));
-			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
-			char *fpath = calloc(MBCH, sizeof(char));
-			for(a = 0; a < cci; a++) {
-				ecard(cc[a], fpath, MBCH, verb);
-				if(verb) printf("%s exported as: %s\n", cc[a]->fn, fpath);
-			}
-			free(fpath);
-			break;
-
-		case all:
-		case phone:
-		case mail:
-			cc = dalloc(mxnum, sizeof(card));
-			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
-			for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
-			break;
+			return exec_export(db, cc, args, alen, svar, mxnum, verb);
 
 		case new:
 			cc = dalloc(1, sizeof(card));
@@ -598,7 +622,12 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			} else {
 				printf("Found no contact with ID #%d.\n", matoi(args[0]));
 			}
-		}
+
+		default:
+			cc = dalloc(mxnum, sizeof(card));
+			cci = mkdeck(db, cc, args[0], svar, mxnum, verb);
+			for(a = 0; a < cci; a++) printcard(cc[a], op, mxnum, verb);
+	}
 
 	free(cc);
 	return 0;

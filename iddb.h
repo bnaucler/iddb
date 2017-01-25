@@ -19,6 +19,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <ctype.h>
+#include <time.h>
 #include <limits.h>
 #include <string.h>
 #include <sqlite3.h>
@@ -85,5 +86,6 @@ int randstr(char *str, const int len);
 int readline(char *prompt, char *buf, const int mxlen);
 char *robj(char *buf, const char *key);
 int matoi(const char *str);
+void setsrand();
 
 #endif

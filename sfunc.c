@@ -2,8 +2,8 @@
 
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 #include <ctype.h>
+#include <time.h>
 #include <limits.h>
 
 // Return 0 if string starts with key
@@ -25,10 +25,7 @@ int randstr(char *str, const int len) {
 
 	char charset[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 	int cslen = strlen(charset);
-	time_t t;
 	unsigned int a = 0;
-
-	srand((unsigned) time(&t));
 
 	for(a = 0; a < len; a++) str[a] = charset[(rand() % cslen)];
 	str[len] = '\0';
@@ -74,4 +71,11 @@ int matoi(const char *str) {
 
 	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
 	else return -2;
+}
+
+// Randomize timer
+void setsrand() {
+
+	time_t t;
+	srand((unsigned) time(&t));
 }
