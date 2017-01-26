@@ -29,13 +29,6 @@ int usage(const char *cmd) {
 	return errno;
 }
 
-// Validate card
-int valcard(card *c) {
-	//TODO: Make useful
-	if(c->lid > 0) return 1;
-	else return 0;
-}
-
 // Check for valid operation
 static int chops(const char *cop) {
 
@@ -166,43 +159,6 @@ static int ctable(sqlite3 *db) {
 	return dbrc;
 }
 
-// Print card to stdout
-int printcard(card *cc, const int op, const int mxnum, const int verb) {
-
-	unsigned int a = 0;
-
-	if(!cc->lid) return 1;
-
-	if(op == all || op == new || op == delete) {
-		if(verb) printf("%d: ", cc->lid);
-		printf("%s ", cc->fn);
-		if(cc->org[0]) printf("(%s)\n", cc->org);
-		else printf("\n");
-		if(cc->uid[0] && verb) printf("UID: %s\n", cc->uid);
-
-		for(a = 0; a < cc->emnum && a < mxnum; a++) 
-			printf("email %d: %s\n", a, cc->em[a]);
-		for(a = 0; a < cc->phnum && a < mxnum; a++)
-			printf("phone %d: %s\n", a, cc->ph[a]);
-		printf("\n");
-
-	} else if(op == mail) {
-		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
-		for(a = 0; a < cc->emnum && a < mxnum; a++) {
-			if(verb) printf("email %d: ", a);
-			printf("%s\n", cc->em[a]);
-		}
-	} else if(op == phone) {
-		if(verb) printf("%d: %s\n", cc->lid, cc->fn);
-		for(a = 0; a < cc->phnum && a < mxnum; a++) {
-			if(verb) printf("phone %d: ", a);
-			printf("%s\n", cc->ph[a]);
-		}
-	}
-
-	return 0;
-}
-
 // Write counter to index
 static int wrindex(sqlite3 *db, const int i, const int verb) {
 
@@ -219,7 +175,7 @@ static int wrindex(sqlite3 *db, const int i, const int verb) {
 }
 
 // Write struct to DB
-int wrdb(sqlite3 *db, card *cc, const int op, const int verb) {
+int wrcard(sqlite3 *db, card *cc, const int op, const int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
@@ -242,23 +198,6 @@ int wrdb(sqlite3 *db, card *cc, const int op, const int verb) {
 	free(pbuf);
 	free(mbuf);
 	return dbrc;
-}
-
-// Return 0 if c1 and c2 are identical (TODO: implement)
-int cmpcard(const card *c1, const card *c2) {
-
-	unsigned int a = 0;
-
-	if(strncmp(c1->uid, c2->uid, ULEN)) return 1;
-	if(strncmp(c1->fn, c2->fn, NALEN)) return 2;
-	if(strncmp(c1->org, c2->org, ORLEN)) return 2;
-	if(c1->phnum != c2->phnum) return 4;
-	if(c1->emnum != c2->emnum) return 5;
-
-	for(a = 0; a < c1->phnum; a++) { if(c1->ph[a] == c2->ph[a]) return 6; }
-	for(a = 0; a < c1->emnum; a++) { if(c1->em[a] == c2->em[a]) return 7; }
-
-	return 0;
 }
 
 // Read SQL data into card
@@ -329,24 +268,6 @@ static int mksqlstr(int svar, char *sql, char *str) {
 		break;
 
 	}
-
-	return 0;
-}
-
-// Copy card by value (TODO: error checking)
-static int cpcard(card *dc, const card *sc) {
-
-	unsigned int a = 0;
-
-	if(sc->lid > 0) dc->lid = sc->lid;
-	if(sc->uid[0]) strncpy(dc->uid, sc->uid, ULEN);
-	strncpy(dc->fn, sc->fn, NALEN);
-	dc->phnum = sc->phnum;
-	dc->emnum = sc->emnum;
-	if(sc->org[0]) strncpy(dc->org, sc->org, ORLEN);
-
-	for(a = 0; a < sc->phnum; a++) strncpy(dc->ph[a], sc->ph[a], PHLEN);
-	for(a = 0; a < sc->emnum; a++) strncpy(dc->em[a], sc->em[a], EMLEN);
 
 	return 0;
 }
@@ -450,19 +371,6 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	return 0;
 }
 
-// Change card LID from plid to nlid
-static int mvcard(sqlite3 *db, int plid, int nlid) {
-
-	char *sql = calloc(BBCH, sizeof(char));
-	char *err = 0;
-
-	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
-
-	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-	free(sql);
-	return dbrc;
-}
-
 // Deletes card #lid from the database
 static int delcard(sqlite3 *db, int lid, int verb) {
 
@@ -478,19 +386,6 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 
 	free(sql);
 	return dbrc;
-}
-
-// Allocate memory for a deck of num cards
-static card **dalloc(int num, int sz) {
-
-	card **cc = calloc(num, sz);
-	unsigned int a = 0;
-
-	for(a = 0; a < num; a++) {
-		cc[a] = calloc(1, sz);
-		cc[a]->lid = -1;
-	}
-	return cc;
 }
 
 // Execute create operation
@@ -528,7 +423,7 @@ static int exec_import(sqlite3 *db, char **args, const char *cmd,
 			} 
 
 			icard(cc[a], f, db, verb);
-			dbrc = wrdb(db, cc[a], op, verb);
+			dbrc = wrcard(db, cc[a], op, verb);
 			if(dbrc) printf("SQL Error #: %d\n", dbrc);
 			else if(verb) printcard(cc[0], op, mxnum, verb);
 			fclose(f);
@@ -576,7 +471,7 @@ static int exec_new(sqlite3 *db, const char *cmd, const int op,
 	mknew(db, c, verb);
 
 	if(valcard(c)) {
-		dbrc = wrdb(db, c, op, verb);
+		dbrc = wrcard(db, c, op, verb);
 		if(dbrc) printf("SQL Error #: %d\n", dbrc);
 		else if(verb) printcard(c, op, mxnum, verb);
 

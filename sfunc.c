@@ -1,3 +1,9 @@
+/*
+ *
+ *		sfunc.c - standard functions for iddb
+ *
+ */
+
 #include "iddb.h"
 
 #include <stdlib.h>

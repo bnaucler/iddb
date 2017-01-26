@@ -89,4 +89,12 @@ int matoi(const char *str);
 void setsrand();
 char *atostr(char *str, char **arr, const int num);
 
+// Forward declarations - cfunc.c
+card **dalloc(int num, int sz);
+int valcard(card *c);
+int mvcard(sqlite3 *db, int plid, int nlid);
+int cpcard(card *dc, const card *sc);
+int cmpcard(const card *c1, const card *c2);
+int printcard(card *c, const int op, const int mxnum, const int verb);
+
 #endif
