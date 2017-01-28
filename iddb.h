@@ -61,7 +61,7 @@
 
 #define FCHAR '~'
 
-// Global variables
+// Type definitions and enumerations
 typedef enum op {create, delete, import, export, help, phone, mail, new, all} op;
 typedef enum svar {lid, uid, fn, org, em, ph} svar;
 
@@ -76,25 +76,35 @@ typedef struct card {
 	unsigned int emnum;
 } card;
 
+typedef struct flag {
+	int op;
+	int mxnum;
+	int vfl;
+	int sfl;
+	char nfl[NALEN];
+	char pfl[PHLEN];
+	char efl[EMLEN];
+} flag;
+
 // Forward declarations - marshal.c
-char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
-char **unmarshal(char *str, char **arr);
+extern char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
+extern char **unmarshal(char *str, char **arr);
 
 // Forward declarations - sfunc.c
-int strst(const char *str, const char *key);
-int randstr(char *str, const int len);
-int readline(char *prompt, char *buf, const int mxlen);
-char *robj(char *buf, const char *key);
-int matoi(const char *str);
-void setsrand();
-char *atostr(char *str, char **arr, const int num);
+extern int strst(const char *str, const char *key);
+extern int randstr(char *str, const int len);
+extern int readline(char *prompt, char *buf, const int mxlen);
+extern char *robj(char *buf, const char *key);
+extern int matoi(const char *str);
+extern void setsrand();
+extern char *atostr(char *str, char **arr, const int num);
 
 // Forward declarations - cfunc.c
-card **dalloc(int num, int sz);
-int valcard(card *c);
-int mvcard(sqlite3 *db, int plid, int nlid);
-int cpcard(card *dc, const card *sc);
-int cmpcard(const card *c1, const card *c2);
-int printcard(card *c, const int op, const int mxnum, const int verb);
+extern card **dalloc(int num, int sz);
+extern int valcard(card *c);
+extern int mvcard(sqlite3 *db, int plid, int nlid);
+extern int cpcard(card *dc, const card *sc);
+extern int cmpcard(const card *c1, const card *c2);
+extern int printcard(card *c, const int op, const int mxnum, const int verb);
 
 #endif

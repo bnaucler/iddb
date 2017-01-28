@@ -527,12 +527,12 @@ static int exec_search(sqlite3 *db, char **args, const int numarg,
 }
 
 // Execute operations
-static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
-	const int mxnum, const int alen, char **args, const int verb) {
+static int execute(sqlite3 *db, const flag *f,  const char *cmd,
+		const int alen, char **args) {
 
 	errno = 0;
 
-	switch(op) {
+	switch(f->op) {
 
 		case help:
 			return usage(cmd);
@@ -541,31 +541,42 @@ static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 			return exec_create(db, cmd);
 
 		case import:
-			return exec_import(db, args, cmd, op, alen, mxnum, verb);
+			return exec_import(db, args, cmd, f->op, alen, f->mxnum, f->vfl);
 
 		case export:
-			return exec_export(db, args, alen, svar, mxnum, verb);
+			return exec_export(db, args, alen, f->sfl, f->mxnum, f->vfl);
 
 		case new:
-			return exec_new(db, cmd, op, mxnum, verb);
+			return exec_new(db, cmd, f->op, f->mxnum, f->vfl);
 
 		case delete:
-			return exec_delete(db, args, alen, op, mxnum, verb);
+			return exec_delete(db, args, alen, f->op, f->mxnum, f->vfl);
 
 		default:
-			return exec_search(db, args, alen, op, svar, mxnum, verb);
+			return exec_search(db, args, alen, f->op, f->sfl, f->mxnum, f->vfl);
 	}
 }
+
+// Set all flags to default values
+void iflag(flag *f) {
+
+	f->op = 0;
+	f->vfl = 0;
+	f->mxnum = NUMCARD;
+	f->sfl = -1;
+}
+
 
 int main(int argc, char **argv) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
 
+	flag *f = calloc(1, sizeof(flag));
+	iflag(f);
+
 	sqlite3 *db;
 
-	int op = 0, dbrc = 0, verb = 0, ret = 0;
-	int mxnum = NUMCARD;
-	int svar = -1; // TODO: implement via getopt
+	int ret = 0;
 	int optc;
 
 	strncpy(cmd, basename(argv[0]), MBCH);
@@ -578,12 +589,12 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'n':
-				mxnum = matoi(optarg);
-				if(mxnum > NUMCARD) mxnum = NUMCARD;
+				f->mxnum = matoi(optarg);
+				if(f->mxnum > NUMCARD) f->mxnum = NUMCARD;
 				break;
 
 			case 'v':
-				verb++;
+				f->vfl++;
 				break;
 
 			default:
@@ -592,18 +603,21 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// Break if no argument has been given
-	if(argc < optind + 1) errno = ESRCH; // TODO: Do dbdump instead
+	// Open database
+	if(sqlite3_open(DBNAME, &db)) errno = ENOENT;
 	if(errno) return usage(cmd);
+
+	// Dump DB if no argument has been given
+	if(argc < optind + 1) {
+		f->op = all;	
+		ret = exec_search(db, NULL, 0, f->op, f->sfl, f->mxnum, f->vfl);
+		sqlite3_close(db);
+		return ret;
+	}
 
 	// Set and verify operation
-	op = chops(argv[optind]);
-	if(op < 0) errno = EINVAL;
-	if(errno) return usage(cmd);
-
-	// Open database
-	dbrc = sqlite3_open(DBNAME, &db);
-	if(dbrc) errno = ENOENT;
+	f->op = chops(argv[optind]);
+	if(f->op < 0) errno = EINVAL;
 	if(errno) return usage(cmd);
 
 	// Prepare argument list
@@ -611,10 +625,11 @@ int main(int argc, char **argv) {
 	argv += optind + 1;
 
 	// Initiate operations
-	ret = execute(db, op, svar, cmd, mxnum, argc, argv, verb);
+	ret = execute(db, f, cmd, argc, argv);
 
 	// Graceful exit
 	free(cmd);
+	free(f);
 	sqlite3_close(db);
 	return ret;
 }

@@ -24,10 +24,10 @@ card **dalloc(int num, int sz) {
 	return cc;
 }
 
-// Validate card
+// Return 1 if card has LID and FN, else return 0
 int valcard(card *c) {
-	//TODO: Make useful
-	if(c->lid > 0) return 1;
+
+	if(c->lid > 0 && c->fn[0]) return 1;
 	else return 0;
 }
 
@@ -44,7 +44,7 @@ int mvcard(sqlite3 *db, int plid, int nlid) {
 	return dbrc;
 }
 
-// Copy card by value (TODO: error checking)
+// Copy card by value (TODO: error handling)
 int cpcard(card *dc, const card *sc) {
 
 	unsigned int a = 0;
