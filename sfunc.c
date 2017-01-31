@@ -105,12 +105,15 @@ char *esccpy(char *dest, char *src, const char esc,
 	size_t len = strlen(src);
 	unsigned int a = 0, b = 0;
 
-	if(!strchr(src, esc)) return src;
+	if(!strchr(src, esc)) {
+		strcpy(dest, src);
 
-	for(a = 0; a < len; a++) {
-		if(a + b >= mxl) return NULL;
-		if(src[a] == esc) dest[(a + b++)] = pref;
-		dest[(a + b)] = src[a];
+	} else {
+		for(a = 0; a < len; a++) {
+			if(a + b >= mxl) return NULL;
+			if(src[a] == esc) dest[(a + b++)] = pref;
+			dest[(a + b)] = src[a];
+		}
 	}
 
 	return dest;

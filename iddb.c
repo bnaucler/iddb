@@ -23,7 +23,7 @@ int usage(const char *cmd) {
 	printf("%s %s - usage: ", cmd, VER);
 	printf("%s [args] command file/string\n", cmd);
 	printf("Available commands:\n");
-	printf("c[reate], d[elete], i[mport], e[xport], h[elp]\n" 
+	printf("c[reate], d[elete], i[mport], e[xport], h[elp]\n"
 			"p[hone], m[ail], n[ew], a[ll]\n");
 
 	return errno;
@@ -67,7 +67,7 @@ static int getindex(sqlite3 *db, const int verb) {
 		if(dbop == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-			if(!strcmp("num", sqlite3_column_name(stmt, a))) 
+			if(!strcmp("num", sqlite3_column_name(stmt, a)))
 				ret = matoi((char*)sqlite3_column_text(stmt, a));
 			}
 		}
@@ -83,7 +83,7 @@ static char *ecard(card *c, char *fpath, int psz, int verb) {
 
 	char *rstr = calloc(EXPLEN + 1, sizeof(char));
 	unsigned int a = 0;
-	
+
 	memset(fpath, 0, psz);
 
 	randstr(rstr, EXPLEN);
@@ -118,15 +118,15 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 		if(!strst(buf, STARTKEY)) verc++;
 		else if(!strst(buf, STOPKEY)) verc++;
 		else if(!strst(buf, UIDKEY))
-			strncpy(c->uid, robj(buf, UIDKEY), ULEN);
+			esccpy(c->uid, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, ULEN);
 		else if(!strst(buf, FNKEY))
-			strncpy(c->fn, robj(buf, FNKEY), NALEN);
+			esccpy(c->fn, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, NALEN);
 		else if(!strst(buf, ORGKEY))
-			strncpy(c->org, robj(buf, ORGKEY), ORLEN);
+			esccpy(c->org, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, ORLEN);
 		else if(!strst(buf, EMKEY))
-			strncpy(c->em[c->emnum++], robj(buf, EMKEY), EMLEN);
+			esccpy(c->em[c->emnum++], robj(buf, UIDKEY), ESCCHAR, ESCCHAR, EMLEN);
 		else if(!strst(buf, PHKEY))
-			strncpy(c->ph[c->phnum++], robj(buf, PHKEY), PHLEN);
+			esccpy(c->ph[c->phnum++], robj(buf, UIDKEY), ESCCHAR, ESCCHAR, PHLEN);
 	}
 
 	if(verc == 2) c->lid = getindex(db, verb);
@@ -272,8 +272,8 @@ static int mksqlstr(int svar, char *sql, char *str) {
 	return 0;
 }
 
-// Return entry from database 
-static int searchdb(sqlite3 *db, card **cc, char *sql, 
+// Return entry from database
+static int searchdb(sqlite3 *db, card **cc, char *sql,
 		unsigned int cci, int mxnum, int verb) {
 
 	card *tmpc = calloc(1, sizeof(card));
@@ -309,7 +309,7 @@ static int searchdb(sqlite3 *db, card **cc, char *sql,
 }
 
 // Create deck of cards - init search(es)
-static int mkdeck(sqlite3 *db, card **cc, char *str, int svar, 
+static int mkdeck(sqlite3 *db, card **cc, char *str, int svar,
 		int mxnum, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -325,7 +325,7 @@ static int mkdeck(sqlite3 *db, card **cc, char *str, int svar,
 			mksqlstr(a, sql, str);
 			cci = searchdb(db, cc, sql, cci, mxnum, verb);
 		}
-	
+
 	} else {
 		mksqlstr(svar, sql, str);
 		cci = searchdb(db, cc, sql, cci, mxnum, verb);
@@ -421,7 +421,7 @@ static int exec_import(sqlite3 *db, char **args, const char *cmd,
 			if(f == NULL) {
 				errno = ENOENT;
 				return usage(cmd);
-			} 
+			}
 
 			icard(cc[a], f, db, verb);
 			dbrc = wrcard(db, cc[a], op, verb);
@@ -507,7 +507,7 @@ static int exec_delete(sqlite3 *db, char **args, const int numarg,
 	free(cc);
 	return 0;
 }
- 
+
 // Execute search operations (all, phone & mail)
 static int exec_search(sqlite3 *db, char **args, const int numarg,
 	const int op, const int svar, const int mxnum, const int verb) {
@@ -528,7 +528,7 @@ static int exec_search(sqlite3 *db, char **args, const int numarg,
 }
 
 // Execute operations
-static int execute(sqlite3 *db, const int op, int svar, const char *cmd, 
+static int execute(sqlite3 *db, const int op, int svar, const char *cmd,
 	const int mxnum, const int alen, char **args, const int verb) {
 
 	errno = 0;
