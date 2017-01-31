@@ -207,11 +207,11 @@ static card *readid(card *c, const char *cn, const char *ct) {
 	unsigned int a = 0;
 
 	if(!strcmp("lid", cn)) c->lid = matoi(ct);
-	if(!strcmp("uid", cn)) strcpy(c->uid, ct);
-	if(!strcmp("fn", cn)) strcpy(c->fn, ct);
-	if(!strcmp("org", cn)) strcpy(c->org, ct);
+	else if(!strcmp("uid", cn)) strcpy(c->uid, ct);
+	else if(!strcmp("fn", cn)) strcpy(c->fn, ct);
+	else if(!strcmp("org", cn)) strcpy(c->org, ct);
 
-	if(!strcmp("ph", cn)) {
+	else if(!strcmp("ph", cn)) {
 		char **parr = calloc(PHNUM * PHLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
@@ -223,7 +223,7 @@ static card *readid(card *c, const char *cn, const char *ct) {
 		free(parr);
 	}
 
-	if(!strcmp("em", cn)) {
+	else if(!strcmp("em", cn)) {
 		char **earr = calloc(EMNUM * EMLEN, sizeof(char));
 		strncpy(buf, ct, BBCH);
 		for(a = 0; a < buf[0]; a++)
@@ -344,24 +344,25 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	unsigned int a = 0;
 
 	if(readline("Full name", buf, NALEN)) return 1;
-	strcpy(c->fn, buf);
+	esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 	c->lid = getindex(db, verb);
 
-	if(!readline("Organization", buf, ORLEN)) strcpy(c->org, buf);
+	if(!readline("Organization", buf, ORLEN))
+	esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	for(a = 0; a < PHNUM; a++) {
 		snprintf(pstr, SBCH, "Phone %d", a);
 		if(readline(pstr, buf, PHLEN)) break;
-		strcpy(c->ph[a], buf);
+		esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->phnum = a;
 
 	for(a = 0; a < EMNUM; a++) {
 		snprintf(pstr, SBCH, "Email %d", a);
 		if(readline(pstr, buf, EMLEN)) break;
-		strcpy(c->em[a], buf);
+		esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->emnum = a;
 

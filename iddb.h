@@ -60,6 +60,7 @@
 #define NUMCARD 1000
 
 #define FCHAR '~'
+#define ESCCHAR '\''
 
 // Type definitions and enumerations
 typedef enum op {create, delete, import, export, help, phone, mail, new, all} op;
@@ -98,6 +99,8 @@ extern char *robj(char *buf, const char *key);
 extern int matoi(const char *str);
 extern void setsrand();
 extern char *atostr(char *str, char **arr, const int num);
+extern char *esccpy(char *dest, char *src, const char esc,
+	const char pref, size_t mxl);
 
 // Forward declarations - cfunc.c
 extern card **dalloc(int num, int sz);

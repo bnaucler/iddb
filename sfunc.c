@@ -15,13 +15,10 @@
 // Return 0 if string starts with key
 int strst(const char *str, const char *key) {
 
-	int klen = strlen(key);
+	size_t klen = strlen(key);
 	unsigned int a = 0;
 
-	// Not sure if tolower is needed
-	for(a = 0; a < klen; a++) {
-		if(tolower(str[a]) != tolower(key[a])) return 1;
-	}
+	for(a = 0; a < klen; a++) { if(toupper(str[a]) != key[a]) return 1; }
 
 	return 0;
 }
@@ -67,12 +64,12 @@ char *robj(char *buf, const char *key) {
 // Overflow protected atoi returning -1 or -2 on error
 int matoi(const char *str) {
 
-	int len = strlen(str);
+	size_t len = strlen(str);
 	unsigned int a = 0;
-	char **dump = calloc(10, sizeof(char));
+	char **dump = calloc(SBCH, sizeof(char));
 
 	for(a = 0; a < len; a++) { if(!isdigit(str[a])) return -1; }
-	long lret = strtol(str, dump, 10);
+	long lret = strtol(str, dump, SBCH);
 	free(dump);
 
 	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
@@ -99,4 +96,22 @@ char *atostr(char *str, char **arr, const int num) {
 	str[(strlen(str) - 1)] = '\0';
 
 	return str;
+}
+
+// Escape str by prefixing char esc
+char *esccpy(char *dest, char *src, const char esc,
+	const char pref, size_t mxl) {
+
+	size_t len = strlen(src);
+	unsigned int a = 0, b = 0;
+
+	if(!strchr(src, esc)) return src;
+
+	for(a = 0; a < len; a++) {
+		if(a + b >= mxl) return NULL;
+		if(src[a] == esc) dest[(a + b++)] = pref;
+		dest[(a + b)] = src[a];
+	}
+
+	return dest;
 }
