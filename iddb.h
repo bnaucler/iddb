@@ -75,6 +75,7 @@ typedef struct card {
 	char em[EMNUM][EMLEN];
 	unsigned int phnum;
 	unsigned int emnum;
+	struct card *next;
 } card;
 
 typedef struct flag {
@@ -93,12 +94,12 @@ extern char **unmarshal(char *str, char **arr);
 
 // Forward declarations - sfunc.c
 extern int strst(const char *str, const char *key);
-extern int randstr(char *str, const int len);
-extern int readline(char *prompt, char *buf, const int mxlen);
+extern int randstr(char *str, const size_t len);
+extern int readline(char *prompt, char *buf, const size_t mxlen);
 extern char *robj(char *buf, const char *key);
 extern int matoi(const char *str);
 extern void setsrand();
-extern char *atostr(char *str, char **arr, const int num);
+extern char *atostr(char *str, char **arr, const size_t num);
 extern char *esccpy(char *dest, char *src, const char esc,
 	const char pref, size_t mxl);
 

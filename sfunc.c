@@ -24,7 +24,7 @@ int strst(const char *str, const char *key) {
 }
 
 // Creates a random string of length len
-int randstr(char *str, const int len) {
+int randstr(char *str, const size_t len) {
 
 	char charset[] = "0123456789abcdefghijklmnopqrstuvwxyz";
 	int cslen = strlen(charset);
@@ -37,7 +37,7 @@ int randstr(char *str, const int len) {
 }
 
 // Read line from stdin
-int readline(char *prompt, char *buf, const int mxlen) {
+int readline(char *prompt, char *buf, const size_t mxlen) {
 
 	memset(buf, 0, mxlen);
 
@@ -84,7 +84,7 @@ void setsrand() {
 }
 
 // Array to string (TODO: It's hacky. Review)
-char *atostr(char *str, char **arr, const int num) {
+char *atostr(char *str, char **arr, const size_t num) {
 
 	unsigned int a = 0, lsz = BBCH;
 
@@ -102,13 +102,13 @@ char *atostr(char *str, char **arr, const int num) {
 char *esccpy(char *dest, char *src, const char esc,
 	const char pref, size_t mxl) {
 
-	size_t len = strlen(src);
-	unsigned int a = 0, b = 0;
-
 	if(!strchr(src, esc)) {
 		strcpy(dest, src);
 
 	} else {
+		size_t len = strlen(src);
+		unsigned int a = 0, b = 0;
+
 		for(a = 0; a < len; a++) {
 			if(a + b >= mxl) return NULL;
 			if(src[a] == esc) dest[(a + b++)] = pref;
