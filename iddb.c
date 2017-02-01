@@ -29,19 +29,25 @@ int usage(const char *cmd) {
 	return errno;
 }
 
-// Check for valid operation TODO: case insensitivity
-static int chops(const char *cop) {
+// Check for valid operation
+static int chops(const char *cop, size_t mxl) {
 
 	char vops[9][7] = {"create", "delete", "import", "export", "help",
 		"phone", "mail", "new", "all"};
 
+	int clen = strlen(cop);
+	if(clen > mxl) return -1;
+
+	char lccop[(clen +1)];
 	int opnum = sizeof(vops) / sizeof(vops[0]);
 
-	unsigned int a;
+	unsigned int a = 0;
+
+	for(a = 0; a < clen; a++) lccop[a] = tolower(cop[a]);
 
 	for(a = 0; a < opnum; a++) {
-		if(strlen(cop) == 1) { if(cop[0] == vops[a][0]) return a; }
-		else { if(!strcmp(cop, vops[a])) return a; }
+		if(clen == 1) { if(lccop[0] == vops[a][0]) return a; }
+		else { if(!strcmp(lccop, vops[a])) return a; }
 	}
 
 	errno = EINVAL;
@@ -607,7 +613,7 @@ int main(int argc, char **argv) {
 	}
 
 	// Set and verify operation
-	f->op = chops(argv[optind]);
+	f->op = chops(argv[optind], SBCH);
 	if(f->op < 0) errno = EINVAL;
 	if(errno) return usage(cmd);
 
