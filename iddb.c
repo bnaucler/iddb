@@ -395,6 +395,23 @@ static int delcard(sqlite3 *db, int lid, int verb) {
 	return dbrc;
 }
 
+// Wrapper for icard()
+static int iloop(sqlite3 *db, const flag *f, const char *fname) {
+
+	FILE *vf = fopen(fname, "r");
+	card *c = calloc(1, sizeof(card));
+
+	icard(c, vf, db, f->vfl);
+	int dbrc = wrcard(db, c, f->op, f->vfl);
+
+	if(dbrc) return dbrc;
+	else if(f->vfl) printcard(c, f->op, f->mxnum, f->vfl);
+
+	fclose(vf);
+	free(c);
+	return 0;
+}
+
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd) {
 
@@ -408,37 +425,38 @@ static int exec_create(sqlite3 *db, const char *cmd) {
 	}
 }
 
-// Execute import operation
+// Execute import operation TODO: Make pretty
 static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 	const int numf) {
 
-	int dbrc = 0;
 	unsigned int a = 0;
+	struct dirent *dir;
+	DIR *vd;
 
-	card **cc = dalloc(numf, sizeof(card));
+	char *dirn = calloc(MBCH, sizeof(char));
 
 	for(a = 0; a < numf; a++) {
-		DIR *vd = opendir(args[a]);
-		if(vd && !errno) {
-			// TODO: Dirent walk
+		errno = 0;
+		vd = opendir(args[a]);
 
-			closedir(vd);
-		} else {
-			FILE *vf = fopen(args[a], "r");
-			if(vf == NULL) {
-				errno = ENOENT;
-				return usage(cmd);
+		if(vd && !errno) {
+			while((dir = readdir(vd)) != NULL) {
+				if(dir->d_name[0] != '.') {
+					if(!mkpath(dirn, args[a], dir->d_name, DDIV, MBCH)) {
+						if(iloop(db, f, dirn))
+							printf("Error reading file %s\n", args[a]);
+					}
+				}
 			}
 
-			icard(cc[a], vf, db, f->vfl);
-			dbrc = wrcard(db, cc[a], f->op, f->vfl);
-			if(dbrc) printf("SQL Error #: %d\n", dbrc);
-			else if(f->vfl) printcard(cc[0], f->op, f->mxnum, f->vfl);
-			fclose(vf);
+		} else {
+			if(iloop(db, f, args[a])) printf("Error reading file %s\n", args[a]);
 		}
+
 	}
 
-	free(cc);
+	closedir(vd);
+	free(dirn);
 	return 0;
 }
 
@@ -555,7 +573,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 }
 
 // Set all flags to default values
-void iflag(flag *f) {
+static void iflag(flag *f) {
 
 	f->op = 0;
 	f->vfl = 0;
@@ -599,14 +617,14 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	
+
 	// Open database
 	if(sqlite3_open(DBNAME, &db)) errno = ENOENT;
 	if(errno) return usage(cmd);
 
 	// Dump DB if no argument has been given
 	if(argc < optind + 1) {
-		f->op = all;	
+		f->op = all;
 		ret = exec_search(db, f, NULL, 0);
 		sqlite3_close(db);
 		return ret;

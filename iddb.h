@@ -61,6 +61,7 @@
 
 #define FCHAR '~'
 #define ESCCHAR '\''
+#define DDIV '/'
 
 // Type definitions and enumerations
 typedef enum op {create, delete, import, export, help, phone, mail, new, all} op;
@@ -102,6 +103,8 @@ extern void setsrand();
 extern char *atostr(char *str, char **arr, const size_t num);
 extern char *esccpy(char *dest, char *src, const char esc,
 	const char pref, size_t mxl);
+extern int mkpath(char *out, char *dirname, const char *fname,
+	const char div, size_t mxl);
 
 // Forward declarations - cfunc.c
 extern card **dalloc(int num, int sz);

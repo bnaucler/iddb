@@ -118,3 +118,21 @@ char *esccpy(char *dest, char *src, const char esc,
 
 	return dest;
 }
+
+// Create full path from dir- and file names
+int mkpath(char *out, char *dirname, const char *fname,
+	const char div, size_t mxl) {
+
+	int arlen = strlen(dirname);
+
+	if(arlen + strlen(fname) + 2 > mxl) return 1;
+
+	if(dirname[(arlen - 1)] != div) {
+		dirname[(arlen - 1)] = div;
+		dirname[arlen] = '\0';
+	}
+
+	snprintf(out, MBCH, "%s%s", dirname, fname);
+
+	return 0;
+}
