@@ -20,11 +20,24 @@ int usage(const char *cmd) {
 
 	if (errno) printf("Error: %s\n", strerror(errno));
 
-	printf("%s %s - usage: ", cmd, VER);
-	printf("%s [args] command file/string\n", cmd);
-	printf("Available commands:\n");
-	printf("c[reate], d[elete], i[mport], e[xport], h[elp]\n"
-			"p[hone], m[ail], n[ew], a[ll]\n");
+	printf("%s %s\n", cmd, VER);
+	printf("Usage: %s [options] [operation] [args]\n\n", cmd);
+	printf("Operations:\n"
+			"h[elp]    Display this text\n"
+			"c[reate]  Create or reset database\n"
+			"a[ll]     Search and display all contact information\n"
+			"i[mport]  Import VCF from file(s) or dir(s)\n"
+			"e[xport]  Search and export output to VCF\n"
+			"p[hone]   Search and display phone numbers\n"
+			"m[ail]    Search and display email addresses\n"
+			"n[ew]     Interactively add new contact\n"
+			"d[elete]  Delete user with specified ID\n\n"
+
+			"Options:\n"
+			"-f file   Specify database file\n"
+			"-h        Display this text\n"
+			"-n num    Display max num results\n"
+			"-v        Increase verbosity level:\n");
 
 	return errno;
 }
@@ -280,16 +293,15 @@ static int mksqlstr(int svar, char *sql, char *str) {
 static int searchdb(sqlite3 *db, card *c, char *sql,
 		unsigned int cci, int mxnum, int verb) {
 
-	unsigned int isdbl = 0;
-
 	sqlite3_stmt *stmt;
 	card *head = c;
 	card *cmpc = c;
 
+	unsigned int a = 0, isdbl = 0;
+
 	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbrc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	unsigned int a = 0;
 
 	if (dbrc && verb) fprintf(stderr, "SQL error: %d\n", dbrc);
 
@@ -422,14 +434,14 @@ static int iloop(sqlite3 *db, const flag *f, const char *fname) {
 }
 
 // Execute create operation
-static int exec_create(sqlite3 *db, const char *cmd) {
+static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
 	if (ctable(db)) {
 		errno = EEXIST; // TODO: Better error messages..
 		return usage(cmd);
 
 	} else {
-		printf("Database %s created successfully\n", DBNAME);
+		printf("Database %s created successfully\n", dbpath);
 		return 0;
 	}
 }
@@ -567,7 +579,7 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 
 // Execute operations
 static int execute(sqlite3 *db, const flag *f,  const char *cmd,
-	const int alen, char **args) {
+	const char *dbpath, const int alen, char **args) {
 	errno = 0;
 
 	switch(f->op) {
@@ -575,7 +587,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 		case help:
 			return usage(cmd);
 		case create:
-			return exec_create(db, cmd);
+			return exec_create(db, cmd, dbpath);
 		case import:
 			return exec_import(db, f, args, cmd, alen);
 		case export:
@@ -593,14 +605,15 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 static void iflag(flag *f) {
 
 	f->op = 0;
-	f->vfl = 0;
 	f->mxnum = NUMCARD;
+	f->vfl = 0;
 	f->sfl = -1;
 }
 
 int main(int argc, char **argv) {
 
 	char *cmd = calloc(MBCH, sizeof(char));
+	char *dbpath = calloc(MBCH, sizeof(char));
 
 	flag *f = calloc(1, sizeof(flag));
 	iflag(f);
@@ -614,8 +627,12 @@ int main(int argc, char **argv) {
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
-	while((optc = getopt(argc, argv, "hn:v")) != -1) {
+	while((optc = getopt(argc, argv, "f:hn:v")) != -1) {
 		switch(optc) {
+
+			case 'f':
+				strncpy(dbpath, optarg, MBCH);
+				break;
 
 			case 'h':
 				return usage(cmd);
@@ -636,8 +653,10 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// Open database
-	if(sqlite3_open(DBNAME, &db)) errno = ENOENT;
+	// Open database TODO: Avoid lock if db does not exist
+	if(!dbpath[0])
+		snprintf(dbpath, MBCH, "%s%c%s", getenv("HOME"), DDIV, DBNAME);
+	if(sqlite3_open(dbpath, &db)) errno = ENOENT;
 
 	// Dump DB if no argument has been given
 	if(argc < optind + 1) {
@@ -661,10 +680,11 @@ int main(int argc, char **argv) {
 	argv += optind + 1;
 
 	// Initiate operations
-	ret = execute(db, f, cmd, argc, argv);
+	ret = execute(db, f, cmd, dbpath, argc, argv);
 
 	// Graceful exit
 	free(cmd);
+	free(dbpath);
 	free(f);
 	sqlite3_close(db);
 	return ret;

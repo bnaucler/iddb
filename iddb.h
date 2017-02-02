@@ -25,7 +25,7 @@
 #include <sqlite3.h>
 
 #define VER "0.3A"
-#define DBNAME "iddb.sl3"
+#define DBNAME ".iddb.sl3"
 
 #define NALEN 128
 #define ORLEN 128

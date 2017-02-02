@@ -16,14 +16,16 @@ However; for most applications you'll find [abook](http://abook.sourceforge.net/
 * SQLite3
 
 ## Installation
-For now, just run `make` and execute the binary from source dir.  
-Proper installation will come later.
+`make all install`  
+`iddb create`
+
+Unless otherwise specified, the binary will be installed in `/usr/bin` and the database at `$HOME/.iddb.sl3`
 
 ## Usage examples
 `iddb help` - Prints usage information  
-`iddb create` - Creates or resets the database  
-`iddb new` - Interactively create new contact  
+`iddb -f ~/.db create` - Creates or resets database ~/.db  
 `iddb import somedir/` - Imports all VCF files in somedir to database  
+`iddb new` - Interactively create new contact  
 `iddb all steve` - Searches database for steve and prints all information  
 `iddb export steve` - Searches database for steve and exports VCF files
 
