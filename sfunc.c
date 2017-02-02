@@ -66,11 +66,10 @@ int matoi(const char *str) {
 
 	size_t len = strlen(str);
 	unsigned int a = 0;
-	char **dump = calloc(SBCH, sizeof(char));
+	char *dump;
 
 	for(a = 0; a < len; a++) { if(!isdigit(str[a])) return -1; }
-	long lret = strtol(str, dump, SBCH);
-	free(dump);
+	long lret = strtol(str, &dump, 10);
 
 	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
 	else return -2;
@@ -128,8 +127,8 @@ int mkpath(char *out, char *dirname, const char *fname,
 	if(arlen + strlen(fname) + 2 > mxl) return 1;
 
 	if(dirname[(arlen - 1)] != div) {
-		dirname[(arlen - 1)] = div;
-		dirname[arlen] = '\0';
+		dirname[(arlen)] = div;
+		dirname[(arlen + 1)] = '\0';
 	}
 
 	snprintf(out, MBCH, "%s%s", dirname, fname);

@@ -63,19 +63,15 @@ static int getindex(sqlite3 *db, const int verb) {
 	char *sql = calloc(BBCH, sizeof(char));
 	sqlite3_stmt *stmt;
 
-	snprintf(sql, BBCH, "SELECT * FROM ctr;");
+	snprintf(sql, BBCH, "SELECT num FROM ctr;");
 
 	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	if (verb > 1) printf("Query: %s\n", sql);
 
-	// TODO: Replace with callback?
+	// TODO: Replace with callback? Duplicates at low count. Why?
 	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbop == SQLITE_ROW) {
-			int ccnt = sqlite3_column_count(stmt);
-			for(a = 0; a < ccnt; a++){
-			if(!strcmp("num", sqlite3_column_name(stmt, a)))
-				ret = matoi((char*)sqlite3_column_text(stmt, a));
-			}
+			ret = matoi((char*)sqlite3_column_text(stmt, a));
 		}
 	}
 
@@ -155,9 +151,9 @@ static int ctable(sqlite3 *db) {
 
 	if(!dbrc) {
 		strncpy(sql, "DROP TABLE IF EXISTS ctr;"
-			"CREATE TABLE ctr(addr INT, num INT);", DBCH);
+			"CREATE TABLE ctr(num INT);", DBCH);
 		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-		if(!dbrc) strncpy(sql, "INSERT INTO ctr VALUES(0, 0);", BBCH);
+		if(!dbrc) strncpy(sql, "INSERT INTO ctr VALUES(0);", BBCH);
 		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 	}
 
@@ -189,9 +185,11 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
 	char *err = 0;
 
+	c->lid++;
+
 	snprintf(sql, BBCH, "INSERT INTO id VALUES"
 			"(%d, '%s', '%s', '%s',  '%s', '%s');",
-			++c->lid, c->uid, c->fn, c->org,
+			c->lid, c->uid, c->fn, c->org,
 			marshal(pbuf, c->phnum, PHLEN, c->ph),
 			marshal(mbuf, c->emnum, EMLEN, c->em));
 
@@ -279,16 +277,19 @@ static int mksqlstr(int svar, char *sql, char *str) {
 }
 
 // Return entry from database
-static int searchdb(sqlite3 *db, card **cc, char *sql,
+static int searchdb(sqlite3 *db, card *c, char *sql,
 		unsigned int cci, int mxnum, int verb) {
 
-	card *tmpc = calloc(1, sizeof(card));
+	unsigned int isdbl = 0;
+
 	sqlite3_stmt *stmt;
+	card *head = c;
+	card *cmpc = c;
 
 	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbrc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-	unsigned int a = 0, isdbl = 0;
+	unsigned int a = 0;
 
 	if (dbrc && verb) fprintf(stderr, "SQL error: %d\n", dbrc);
 
@@ -296,26 +297,34 @@ static int searchdb(sqlite3 *db, card **cc, char *sql,
 		if(dbrc == SQLITE_ROW) {
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
-				readid(tmpc, sqlite3_column_name(stmt, a),
+				readid(c, sqlite3_column_name(stmt, a),
 						(char*)sqlite3_column_text(stmt, a));
 			}
+			cci++;
 		}
 
-		for(a = 0; a < cci; a++) { if(!cmpcard(tmpc, cc[a])) isdbl++; }
+		if(!c->next) c->next = calloc(1, sizeof(card));
+		cmpc = head;
 
-		if(!isdbl) {
-			cpcard(cc[cci++], tmpc);
+		while(cmpc->lid) {
+			if(!cmpcard(cmpc, c)) isdbl++; 
+			cmpc = cmpc->next;
+		}
+
+		if(!isdbl || c == head) {
+			c = c->next;
 			if(cci >= mxnum) return cci;
 		}
+
 		isdbl = 0;
 	}
 
-	free(tmpc);
+	// free(tmpc);
 	return cci;
 }
 
 // Create deck of cards - init search(es)
-static int mkdeck(sqlite3 *db, card **cc, char *str, int svar,
+static int mkdeck(sqlite3 *db, card *c, char *str, int svar,
 		int mxnum, int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
@@ -323,18 +332,18 @@ static int mkdeck(sqlite3 *db, card **cc, char *str, int svar,
 
 	if(!str) {
 		snprintf(sql, BBCH, "SELECT * FROM id;");
-		cci = searchdb(db, cc, sql, cci, mxnum, verb);
+		cci = searchdb(db, c, sql, cci, mxnum, verb);
 
 	} else if (svar < 0) {
 		for(a = 0; a < 6; a++) {
 			if(cci >= mxnum) return cci;
 			mksqlstr(a, sql, str);
-			cci = searchdb(db, cc, sql, cci, mxnum, verb);
+			cci = searchdb(db, c, sql, cci, mxnum, verb);
 		}
 
 	} else {
 		mksqlstr(svar, sql, str);
-		cci = searchdb(db, cc, sql, cci, mxnum, verb);
+		cci = searchdb(db, c, sql, cci, mxnum, verb);
 	}
 
 	free(sql);
@@ -429,7 +438,7 @@ static int exec_create(sqlite3 *db, const char *cmd) {
 static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 	const int numf) {
 
-	unsigned int a = 0;
+	unsigned int a = 0, ctr = 0;;
 	struct dirent *dir;
 	DIR *vd;
 
@@ -443,17 +452,23 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 			while((dir = readdir(vd)) != NULL) {
 				if(dir->d_name[0] != '.') {
 					if(!mkpath(dirn, args[a], dir->d_name, DDIV, MBCH)) {
-						if(iloop(db, f, dirn))
-							printf("Error reading file %s\n", args[a]);
+						if(iloop(db, f, dirn)) {
+							fprintf(stderr, "Error reading file %s\n", args[a]);
+						} else {
+							ctr++;
+							if(f->vfl) printf("[%d] %s imported successfully\n", ctr, dirn);
+						}
 					}
 				}
 			}
 
 		} else {
+			ctr++;
 			if(iloop(db, f, args[a])) printf("Error reading file %s\n", args[a]);
 		}
-
 	}
+
+	if(f->vfl) printf("%d File(s) imported\n", ctr);
 
 	closedir(vd);
 	free(dirn);
@@ -464,25 +479,24 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 static int exec_export(sqlite3 *db, const flag *f, char **args,
 	const int numarg) {
 
-	unsigned int a = 0, cci = 0;
-
 	char *sstr = calloc(BBCH, sizeof(char));
 	char *fpath = calloc(MBCH, sizeof(char));
+	card *head = calloc(1, sizeof(card));
+	card *ccard = head;
 
-	card **cc = dalloc(f->mxnum, sizeof(card));
 	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
+	mkdeck(db, ccard, sstr, f->sfl, f->mxnum, f->vfl);
 
-	setsrand();
+	ccard = head;
 
-	cci = mkdeck(db, cc, sstr, f->sfl, f->mxnum, f->vfl);
-	for(a = 0; a < cci; a++) {
-		ecard(cc[a], fpath, MBCH, f->vfl);
-		if(f->vfl) printf("%s exported as: %s\n", cc[a]->fn, fpath);
+	while(ccard->lid) {
+		ecard(ccard, fpath, MBCH, f->vfl);
+		if(f->vfl) printf("%s exported as: %s\n", ccard->fn, fpath);
+		ccard = ccard->next;
 	}
 
 	free(sstr);
 	free(fpath);
-	free(cc);
 	return 0;
 }
 
@@ -492,7 +506,6 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd) {
 	int dbrc = 0;
 	card *c = calloc(1, sizeof(card));
 
-	setsrand();
 	mknew(db, c, f->vfl);
 
 	if(valcard(c)) {
@@ -513,38 +526,42 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd) {
 static int exec_delete(sqlite3 *db, const flag *f, char **args,
 	const int numarg) {
 
-	card **cc = dalloc(1, sizeof(card));
+	card *head = calloc(1, sizeof(card));
+	card *ccard = head;
 
-	mkdeck(db, cc, args[0], lid, f->mxnum, f->vfl);
-	if(valcard(cc[0])) {
-		delcard(db, cc[0]->lid, f->vfl);
+	// TODO: Don't delete with head pointer?
+	mkdeck(db, ccard, args[0], lid, f->mxnum, f->vfl);
+	if(valcard(ccard)) {
+		delcard(db, head->lid, f->vfl);
 		if(f->vfl) {
 			printf("Deleted card:\n");
-			printcard(cc[0], f->op, f->mxnum, 2);
+			printcard(ccard, f->op, f->mxnum, 2);
 		}
 	} else {
 		printf("Found no contact with ID #%d.\n", matoi(args[0]));
 	}
 
-	free(cc);
 	return 0;
 }
 
 // Execute search operations (all, phone & mail)
 static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg) {
 
-	unsigned int a = 0, cci = 0;
-
 	char *sstr = calloc(BBCH, sizeof(char));
-	card **cc = dalloc(f->mxnum, sizeof(card));
+
+	card *head = calloc(1, sizeof(card));
+	card *ccard = head;
 
 	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
 
-	cci = mkdeck(db, cc, sstr, f->sfl, f->mxnum, f->vfl);
-	for(a = 0; a < cci; a++) printcard(cc[a], f->op, f->mxnum, f->vfl);
+	mkdeck(db, ccard, sstr, f->sfl, f->mxnum, f->vfl);
+	ccard = head;
+	while(ccard->lid) {
+		printcard(ccard, f->op, f->mxnum, f->vfl);
+		ccard = ccard->next;
+	}
 
 	free(sstr);
-	free(cc);
 	return 0;
 }
 
@@ -593,6 +610,8 @@ int main(int argc, char **argv) {
 	int ret = 0;
 	int optc;
 
+	setsrand();
+
 	strncpy(cmd, basename(argv[0]), MBCH);
 
 	while((optc = getopt(argc, argv, "hn:v")) != -1) {
@@ -617,10 +636,8 @@ int main(int argc, char **argv) {
 		}
 	}
 
-
 	// Open database
 	if(sqlite3_open(DBNAME, &db)) errno = ENOENT;
-	if(errno) return usage(cmd);
 
 	// Dump DB if no argument has been given
 	if(argc < optind + 1) {
@@ -630,14 +647,13 @@ int main(int argc, char **argv) {
 		return ret;
 	}
 
+	// Check for errors
+	if(errno && f->op != create) return usage(cmd);
+	errno = 0;
+
 	// Set and verify operation
 	f->op = chops(argv[optind], SBCH);
 	if(f->op < 0) errno = EINVAL;
-	if(errno) return usage(cmd);
-
-	// Open database
-	int dbrc = sqlite3_open(DBNAME, &db);
-	if(dbrc) errno = ENOENT;
 	if(errno) return usage(cmd);
 
 	// Prepare argument list

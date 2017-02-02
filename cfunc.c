@@ -11,19 +11,6 @@
 #include <string.h>
 #include <sqlite3.h>
 
-// Allocate memory for a deck of num cards
-card **dalloc(int num, int sz) {
-
-	card **cc = calloc(num, sz);
-	unsigned int a = 0;
-
-	for(a = 0; a < num; a++) {
-		cc[a] = calloc(1, sz);
-		cc[a]->lid = -1;
-	}
-	return cc;
-}
-
 // Return 1 if card has LID and FN, else return 0
 int valcard(card *c) {
 
@@ -42,24 +29,6 @@ int mvcard(sqlite3 *db, int plid, int nlid) {
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 	free(sql);
 	return dbrc;
-}
-
-// Copy card by value (TODO: error handling)
-int cpcard(card *dc, const card *sc) {
-
-	unsigned int a = 0;
-
-	if(sc->lid > 0) dc->lid = sc->lid;
-	if(sc->uid[0]) strncpy(dc->uid, sc->uid, ULEN);
-	strncpy(dc->fn, sc->fn, NALEN);
-	dc->phnum = sc->phnum;
-	dc->emnum = sc->emnum;
-	if(sc->org[0]) strncpy(dc->org, sc->org, ORLEN);
-
-	for(a = 0; a < sc->phnum; a++) strncpy(dc->ph[a], sc->ph[a], PHLEN);
-	for(a = 0; a < sc->emnum; a++) strncpy(dc->em[a], sc->em[a], EMLEN);
-
-	return 0;
 }
 
 // Return 0 if c1 and c2 are identical
