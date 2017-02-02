@@ -256,7 +256,7 @@ static card *readid(card *c, const char *cn, const char *ct) {
 	return c;
 }
 
-// Create SQL search string
+// Create SQL search string TODO: Return something useful
 static int mksqlstr(int svar, char *sql, char *str) {
 
 	switch(svar) {
@@ -433,6 +433,28 @@ static int iloop(sqlite3 *db, const flag *f, const char *fname) {
 	return 0;
 }
 
+// Execute import loop for each file in directory
+static int import_dir(sqlite3 *db, DIR *vd, const flag *f, char *fpath,
+	char *dirn, unsigned int ctr) {
+
+	struct dirent *dir;
+
+	while((dir = readdir(vd)) != NULL) {
+		if(dir->d_name[0] != '.') {
+			if(!mkpath(fpath, dirn, dir->d_name, DDIV, MBCH)) {
+				if(iloop(db, f, fpath)) {
+					fprintf(stderr, "Error reading file %s\n", fpath);
+				} else {
+					ctr++;
+					if(f->vfl) printf("[%d] %s imported successfully\n", ctr, fpath);
+				}
+			}
+		}
+	}
+	
+	return ctr;
+}
+
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
@@ -446,44 +468,35 @@ static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 	}
 }
 
-// Execute import operation TODO: Make pretty
+// Execute import operation
 static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 	const int numf) {
 
 	unsigned int a = 0, ctr = 0;;
-	struct dirent *dir;
 	DIR *vd;
 
-	char *dirn = calloc(MBCH, sizeof(char));
+	char *fpath = calloc(MBCH, sizeof(char));
 
 	for(a = 0; a < numf; a++) {
 		errno = 0;
 		vd = opendir(args[a]);
 
 		if(vd && !errno) {
-			while((dir = readdir(vd)) != NULL) {
-				if(dir->d_name[0] != '.') {
-					if(!mkpath(dirn, args[a], dir->d_name, DDIV, MBCH)) {
-						if(iloop(db, f, dirn)) {
-							fprintf(stderr, "Error reading file %s\n", args[a]);
-						} else {
-							ctr++;
-							if(f->vfl) printf("[%d] %s imported successfully\n", ctr, dirn);
-						}
-					}
-				}
-			}
+			ctr += import_dir(db, vd, f, fpath, args[a], ctr);
 
 		} else {
-			ctr++;
-			if(iloop(db, f, args[a])) printf("Error reading file %s\n", args[a]);
+			if(iloop(db, f, args[a])) {
+				fprintf(stderr, "Error reading file %s\n", args[a]);
+			} else {
+				ctr++;
+			}	if(f->vfl) printf("[%d] %s imported successfully\n", ctr, fpath);
 		}
 	}
 
 	if(f->vfl) printf("%d File(s) imported\n", ctr);
 
 	closedir(vd);
-	free(dirn);
+	free(fpath);
 	return 0;
 }
 
