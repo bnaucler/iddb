@@ -1,5 +1,5 @@
 # iddb v0.3A
-An identity database to manage your contacts.  
+A minimalist identity database to manage your contacts.  
 
 ## Written by
 Björn Westerberg Nauclér (mail@bnaucler.se) 2017

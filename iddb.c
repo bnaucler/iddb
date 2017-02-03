@@ -319,7 +319,7 @@ static int searchdb(sqlite3 *db, card *c, char *sql,
 		cmpc = head;
 
 		while(cmpc->lid) {
-			if(!cmpcard(cmpc, c)) isdbl++; 
+			if(!cmpcard(cmpc, c)) isdbl++;
 			cmpc = cmpc->next;
 		}
 
@@ -451,7 +451,7 @@ static int import_dir(sqlite3 *db, DIR *vd, const flag *f, char *fpath,
 			}
 		}
 	}
-	
+
 	return ctr;
 }
 
@@ -617,7 +617,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 // Set all flags to default values
 static void iflag(flag *f) {
 
-	f->op = 0;
+	f->op = -1;
 	f->mxnum = NUMCARD;
 	f->vfl = 0;
 	f->sfl = -1;
@@ -666,22 +666,24 @@ int main(int argc, char **argv) {
 		}
 	}
 
-	// Open database TODO: Avoid lock if db does not exist
+	// Open database
 	if(!dbpath[0])
 		snprintf(dbpath, MBCH, "%s%c%s", getenv("HOME"), DDIV, DBNAME);
 	if(sqlite3_open(dbpath, &db)) errno = ENOENT;
 
 	// Dump DB if no argument has been given
-	if(argc < optind + 1) {
+	if(argc <= optind && !errno) {
 		f->op = all;
 		ret = exec_search(db, f, NULL, 0);
 		sqlite3_close(db);
 		return ret;
-	}
 
-	// Check for errors
-	if(errno && f->op != create) return usage(cmd);
-	errno = 0;
+	// Create database if it doesn't exist
+	} else if(errno == ENOENT) {
+		exec_create(db, cmd, dbpath);
+		errno = 0;
+		if(argc <= optind) return 0;
+	} 
 
 	// Set and verify operation
 	f->op = chops(argv[optind], SBCH);
