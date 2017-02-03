@@ -45,7 +45,6 @@
 
 #define EXPLEN 20
 #define EXPSUF ".vcf"
-#define EXPDIR "exp/"
 
 #define STARTKEY "BEGIN:VCARD"
 #define STOPKEY "END:VCARD"
@@ -84,6 +83,7 @@ typedef struct flag {
 	int mxnum;
 	int vfl;
 	int sfl;
+	char dfl[MBCH];
 	char nfl[NALEN];
 	char pfl[PHLEN];
 	char efl[EMLEN];

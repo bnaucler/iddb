@@ -34,6 +34,7 @@ int usage(const char *cmd) {
 			"d[elete]  Delete user with specified ID\n\n"
 
 			"Options:\n"
+			"-d dir    Specify output directory for export\n"
 			"-f file   Specify database file\n"
 			"-h        Display this text\n"
 			"-n num    Display max num results\n"
@@ -94,15 +95,23 @@ static int getindex(sqlite3 *db, const int verb) {
 }
 
 // Export card to file
-static char *ecard(card *c, char *fpath, int psz, int verb) {
+static char *ecard(card *c, char *fpath, int psz, const char *edir,
+	const int verb) {
 
 	char *rstr = calloc(EXPLEN + 1, sizeof(char));
 	unsigned int a = 0;
 
-	memset(fpath, 0, psz);
-
 	randstr(rstr, EXPLEN);
-	snprintf(fpath, MBCH, "%s%s%s", EXPDIR, rstr, EXPSUF);
+
+	if(!edir[0]) strncpy(fpath, getenv("PWD"), MBCH);
+	else strncpy(fpath, edir, MBCH);
+
+	int dlen = strlen(fpath);
+	if(fpath[(dlen)] != DDIV) fpath[(dlen)] = DDIV;
+	fpath[(dlen + 1)] = '\0';
+
+	strncat(fpath, rstr, MBCH);
+	strncat(fpath, EXPSUF, MBCH);
 
 	FILE *f = fopen(fpath, "w");
 
@@ -515,7 +524,7 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	ccard = head;
 
 	while(ccard->lid) {
-		ecard(ccard, fpath, MBCH, f->vfl);
+		ecard(ccard, fpath, MBCH, f->dfl, f->vfl);
 		if(f->vfl) printf("%s exported as: %s\n", ccard->fn, fpath);
 		ccard = ccard->next;
 	}
@@ -640,8 +649,12 @@ int main(int argc, char **argv) {
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
-	while((optc = getopt(argc, argv, "f:hn:v")) != -1) {
+	while((optc = getopt(argc, argv, "d:f:hn:v")) != -1) {
 		switch(optc) {
+
+			case 'd':
+				strncpy(f->dfl, optarg, MBCH);
+				break;
 
 			case 'f':
 				strncpy(dbpath, optarg, MBCH);
