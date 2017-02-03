@@ -371,34 +371,41 @@ static int mkdeck(sqlite3 *db, card *c, char *str, int svar,
 	return cci;
 }
 
-// Read new card from stdin
+// Read new card from stdin TODO: loop func to minimize repetition
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	char *buf = calloc(MBCH, sizeof(char));
-	char *pstr = calloc(SBCH, sizeof(char));
-
+	char *pstr = calloc(MBCH, sizeof(char));
 	unsigned int a = 0;
 
-	if(readline("Full name", buf, NALEN)) return 1;
-	esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
+	if(c->fn[0]) snprintf(pstr, MBCH, "Full name (Default: %s)", c->fn);
+	else strncpy(pstr, "Full name", MBCH);
+
+	if(readline(pstr, buf, NALEN) && !c->fn[0]) return 1;
+	else if(!c->fn[0]) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 	c->lid = getindex(db, verb);
 
-	if(!readline("Organization", buf, ORLEN))
-	esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
+	if(c->org[0]) snprintf(pstr, MBCH, "Organization (Default: %s)", c->org);
+	else strncpy(pstr, "Organization", MBCH);
+
+	if(!readline(pstr, buf, ORLEN)) esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	for(a = 0; a < PHNUM; a++) {
-		snprintf(pstr, SBCH, "Phone %d", a);
+		snprintf(pstr, MBCH, "Phone %d", a);
 		if(readline(pstr, buf, PHLEN)) break;
 		esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->phnum = a;
 
 	for(a = 0; a < EMNUM; a++) {
-		snprintf(pstr, SBCH, "Email %d", a);
-		if(readline(pstr, buf, EMLEN)) break;
-		esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
+		if(c->em[a][0])
+			snprintf(pstr, MBCH, "Email %d (Default: %s)", a, c->em[a]);
+		else snprintf(pstr, MBCH, "Email %d", a);
+
+		if(readline(pstr, buf, EMLEN) && !c->em[a][0]) break;
+		else if(!c->em[a]) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->emnum = a;
 
@@ -534,11 +541,36 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	return 0;
 }
 
+// Fill default values to card from args
+static card *setcarddef(card *c, char **args, const int anum) {
+
+	unsigned int a = 0, hasem = 0;
+
+	for(a = 0; a < anum; a++) {
+		if(isemail(args[a]) && hasem < EMNUM) {
+			strncpy(c->em[hasem++], args[a], EMLEN);
+
+		} else if(!hasem) {
+			if(c->fn[0]) strncat(c->fn, " ", NALEN);
+			strncat(c->fn, args[a], NALEN);
+
+		} else {
+			if(c->org[0]) strncat(c->org, " ", NALEN);
+			strncat(c->org, args[a], NALEN);
+		}
+	}
+
+	return c;
+}
+
 // Execute 'new' operation TODO: Default values from args
-static int exec_new(sqlite3 *db, const flag *f, const char *cmd) {
+static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
+	char **args, const int anum) {
 
 	int dbrc = 0;
+
 	card *c = calloc(1, sizeof(card));
+	c = setcarddef(c, args, anum);
 
 	mknew(db, c, f->vfl);
 
@@ -615,7 +647,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 		case export:
 			return exec_export(db, f, args, alen);
 		case new:
-			return exec_new(db, f, cmd);
+			return exec_new(db, f, cmd, args, alen);
 		case delete:
 			return exec_delete(db, f, args, alen);
 		default:
@@ -696,7 +728,7 @@ int main(int argc, char **argv) {
 		exec_create(db, cmd, dbpath);
 		errno = 0;
 		if(argc <= optind) return 0;
-	} 
+	}
 
 	// Set and verify operation
 	f->op = chops(argv[optind], SBCH);

@@ -135,3 +135,28 @@ int mkpath(char *out, char *dirname, const char *fname,
 
 	return 0;
 }
+
+// Return 1 if string looks like an email address
+int isemail(const char *str) {
+
+	unsigned int a = 0, chk = 0, lpos = 0;
+	int slen = strlen(str);
+
+	for(a = 0; a < slen; a++) {
+		if(chk > 1) {
+			return 1;
+
+		} else if(a > 0 && !lpos && str[a] == '@')  {
+			lpos = a;
+			chk++;
+
+		} else if(str[a] == '@') {
+			return 0;
+
+		} else if(chk && a > lpos + 1 && str[a] == '.') {
+			chk++;
+		}
+	}
+
+	return 0;
+}

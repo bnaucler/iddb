@@ -105,6 +105,7 @@ extern char *esccpy(char *dest, char *src, const char esc,
 	const char pref, size_t mxl);
 extern int mkpath(char *out, char *dirname, const char *fname,
 	const char div, size_t mxl);
+extern int isemail(const char *str);
 
 // Forward declarations - cfunc.c
 extern card **dalloc(int num, int sz);
