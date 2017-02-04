@@ -25,8 +25,8 @@ int mvcard(sqlite3 *db, int plid, int nlid) {
 	char *err = 0;
 
 	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
-
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+
 	free(sql);
 	return dbrc;
 }
@@ -48,7 +48,7 @@ int cmpcard(const card *c1, const card *c2) {
 	return 0;
 }
 
-// Print card to stdout
+// Print card to stdout TODO: Avoid duplicates at op phone and mail
 int printcard(card *c, const int op, const int mxnum, const int verb) {
 
 	unsigned int a = 0;

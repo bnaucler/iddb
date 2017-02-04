@@ -266,7 +266,7 @@ static card *readid(card *c, const char *cn, const char *ct) {
 }
 
 // Create SQL search string TODO: Return something useful
-static int mksqlstr(int svar, char *sql, char *str) {
+static int mksqlstr(int svar, char *sql, const char *str) {
 
 	switch(svar) {
 		case lid:
@@ -299,8 +299,8 @@ static int mksqlstr(int svar, char *sql, char *str) {
 }
 
 // Return entry from database
-static int searchdb(sqlite3 *db, card *c, char *sql,
-		unsigned int cci, int mxnum, int verb) {
+static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
+	unsigned int cci) {
 
 	sqlite3_stmt *stmt;
 	card *head = c;
@@ -308,11 +308,11 @@ static int searchdb(sqlite3 *db, card *c, char *sql,
 
 	unsigned int a = 0, isdbl = 0;
 
-	if (verb > 1) printf("Query: %s\n", sql);
+	if (f->vfl > 1) printf("Query: %s\n", sql);
 
 	int dbrc = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 
-	if (dbrc && verb) fprintf(stderr, "SQL error: %d\n", dbrc);
+	if (dbrc && f->vfl) fprintf(stderr, "SQL error: %d\n", dbrc);
 
 	while((dbrc = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbrc == SQLITE_ROW) {
@@ -334,96 +334,90 @@ static int searchdb(sqlite3 *db, card *c, char *sql,
 
 		if(!isdbl || c == head) {
 			c = c->next;
-			if(cci >= mxnum) return cci;
+			if(cci >= f->mxnum) return cci;
 		}
 
 		isdbl = 0;
 	}
 
-	// free(tmpc);
 	return cci;
 }
 
 // Create deck of cards - init search(es)
-static int mkdeck(sqlite3 *db, card *c, char *str, int svar,
-		int mxnum, int verb) {
+static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	unsigned int a = 0, cci = 0;
 
 	if(!str) {
 		snprintf(sql, BBCH, "SELECT * FROM id;");
-		cci = searchdb(db, c, sql, cci, mxnum, verb);
+		cci = searchdb(db, c, f, sql, cci);
 
-	} else if (svar < 0) {
+	} else if (f->sfl < 0) {
 		for(a = 0; a < 6; a++) {
-			if(cci >= mxnum) return cci;
+			if(cci >= f->mxnum) return cci;
 			mksqlstr(a, sql, str);
-			cci = searchdb(db, c, sql, cci, mxnum, verb);
+			cci = searchdb(db, c, f, sql, cci);
 		}
 
 	} else {
-		mksqlstr(svar, sql, str);
-		cci = searchdb(db, c, sql, cci, mxnum, verb);
+		mksqlstr(f->sfl, sql, str);
+		cci = searchdb(db, c, f, sql, cci);
 	}
 
 	free(sql);
 	return cci;
 }
 
-// Read new card from stdin TODO: loop func to minimize repetition
+// Read new card from stdin
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	char *buf = calloc(MBCH, sizeof(char));
-	char *pstr = calloc(MBCH, sizeof(char));
+	char *prompt = calloc(MBCH, sizeof(char));
+
 	unsigned int a = 0;
+	int rlrc = 0;
 
-	if(c->fn[0]) snprintf(pstr, MBCH, "Full name (Default: %s)", c->fn);
-	else strncpy(pstr, "Full name", MBCH);
-
-	if(readline(pstr, buf, NALEN) && !c->fn[0]) return 1;
-	else if(!c->fn[0]) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
+	rlrc = readline("Full name", buf, c->fn, NALEN);
+	if(rlrc && !c->fn[0]) return 1;
+	else if(!rlrc) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 	c->lid = getindex(db, verb);
 
-	if(c->org[0]) snprintf(pstr, MBCH, "Organization (Default: %s)", c->org);
-	else strncpy(pstr, "Organization", MBCH);
-
-	if(!readline(pstr, buf, ORLEN)) esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
+	rlrc = readline("Organization", buf, c->org, ORLEN);
+	if(!rlrc) esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	for(a = 0; a < PHNUM; a++) {
-		snprintf(pstr, MBCH, "Phone %d", a);
-		if(readline(pstr, buf, PHLEN)) break;
+		snprintf(prompt, MBCH, "Phone %d", a);
+		if(readline(prompt, buf, "", PHLEN)) break;
 		esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->phnum = a;
 
 	for(a = 0; a < EMNUM; a++) {
-		if(c->em[a][0])
-			snprintf(pstr, MBCH, "Email %d (Default: %s)", a, c->em[a]);
-		else snprintf(pstr, MBCH, "Email %d", a);
-
-		if(readline(pstr, buf, EMLEN) && !c->em[a][0]) break;
-		else if(!c->em[a]) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
+		snprintf(prompt, MBCH, "Email %d", a);
+		rlrc = readline(prompt, buf, c->em[a], EMLEN);
+		if(rlrc && !c->em[a][0]) break;
+		else if(!rlrc) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->emnum = a;
 
 	free(buf);
-	free(pstr);
+	free(prompt);
 
 	return 0;
 }
 
 // Deletes card #lid from the database
-static int delcard(sqlite3 *db, int lid, int verb) {
+static int delcard(sqlite3 *db, int clid, int verb) {
 
 	int last = getindex(db, verb);
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
 
-	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", lid);
-	if(last != lid) { if(mvcard(db, lid, last)) return -1; }
+	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", clid);
+	if(last != clid) { if(mvcard(db, clid, last)) return -1; }
 	wrindex(db, --last, verb);
 
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
@@ -471,6 +465,28 @@ static int import_dir(sqlite3 *db, DIR *vd, const flag *f, char *fpath,
 	return ctr;
 }
 
+// Fill default values to card from args
+static card *setcarddef(card *c, char **args, const int anum) {
+
+	unsigned int a = 0, hasem = 0;
+
+	for(a = 0; a < anum; a++) {
+		if(isemail(args[a]) && hasem < EMNUM) {
+			strncpy(c->em[hasem++], args[a], EMLEN);
+
+		} else if(!hasem) {
+			if(c->fn[0]) strncat(c->fn, " ", NALEN);
+			strncat(c->fn, args[a], NALEN);
+
+		} else {
+			if(c->org[0]) strncat(c->org, " ", NALEN);
+			strncat(c->org, args[a], NALEN);
+		}
+	}
+
+	return c;
+}
+
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
@@ -505,7 +521,8 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 				fprintf(stderr, "Error reading file %s\n", args[a]);
 			} else {
 				ctr++;
-			}	if(f->vfl) printf("[%d] %s imported successfully\n", ctr, fpath);
+				if(f->vfl) printf("[%d] %s imported successfully\n", ctr, args[a]);
+			}
 		}
 	}
 
@@ -526,7 +543,7 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	card *ccard = head;
 
 	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
-	mkdeck(db, ccard, sstr, f->sfl, f->mxnum, f->vfl);
+	mkdeck(db, ccard, f, sstr);
 
 	ccard = head;
 
@@ -541,28 +558,6 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	return 0;
 }
 
-// Fill default values to card from args
-static card *setcarddef(card *c, char **args, const int anum) {
-
-	unsigned int a = 0, hasem = 0;
-
-	for(a = 0; a < anum; a++) {
-		if(isemail(args[a]) && hasem < EMNUM) {
-			strncpy(c->em[hasem++], args[a], EMLEN);
-
-		} else if(!hasem) {
-			if(c->fn[0]) strncat(c->fn, " ", NALEN);
-			strncat(c->fn, args[a], NALEN);
-
-		} else {
-			if(c->org[0]) strncat(c->org, " ", NALEN);
-			strncat(c->org, args[a], NALEN);
-		}
-	}
-
-	return c;
-}
-
 // Execute 'new' operation TODO: Default values from args
 static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	char **args, const int anum) {
@@ -572,7 +567,7 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	card *c = calloc(1, sizeof(card));
 	c = setcarddef(c, args, anum);
 
-	mknew(db, c, f->vfl);
+	if(mknew(db, c, f->vfl)) return 1;
 
 	if(valcard(c)) {
 		dbrc = wrcard(db, c, f->op, f->vfl);
@@ -596,7 +591,7 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args,
 	card *ccard = head;
 
 	// TODO: Don't delete with head pointer?
-	mkdeck(db, ccard, args[0], lid, f->mxnum, f->vfl);
+	mkdeck(db, ccard, f, args[0]);
 	if(valcard(ccard)) {
 		delcard(db, head->lid, f->vfl);
 		if(f->vfl) {
@@ -620,7 +615,7 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 
 	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
 
-	mkdeck(db, ccard, sstr, f->sfl, f->mxnum, f->vfl);
+	mkdeck(db, ccard, f, sstr);
 	ccard = head;
 	while(ccard->lid) {
 		printcard(ccard, f->op, f->mxnum, f->vfl);

@@ -1,6 +1,7 @@
 /*
  *
  *		iddb - Identity database / VCF parser
+ *		https://github.com/bnaucler/iddb
  *
  *		Written by: Björn W Nauclér 2017
  *		License: MIT
@@ -96,7 +97,7 @@ extern char **unmarshal(char *str, char **arr);
 // Forward declarations - sfunc.c
 extern int strst(const char *str, const char *key);
 extern int randstr(char *str, const size_t len);
-extern int readline(char *prompt, char *buf, const size_t mxlen);
+extern int readline(char *prompt, char *buf, const char *def, const size_t mxl);
 extern char *robj(char *buf, const char *key);
 extern int matoi(const char *str);
 extern void setsrand();

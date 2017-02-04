@@ -37,14 +37,20 @@ int randstr(char *str, const size_t len) {
 }
 
 // Read line from stdin
-int readline(char *prompt, char *buf, const size_t mxlen) {
+int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 
-	memset(buf, 0, mxlen);
+	char *pstr = calloc(mxl, sizeof(char));
 
-	if(prompt) printf("%s: ", prompt);
-	fgets(buf, mxlen, stdin);
+	memset(buf, 0, mxl);
+
+	if(def[0]) snprintf(pstr, mxl, "%s (Default: %s)", prompt, def);
+	else strncpy(pstr, prompt, mxl);
+
+	if(pstr) printf("%s: ", pstr);
+	fgets(buf, mxl, stdin);
 	buf[(strlen(buf) - 1)] = '\0';
 
+	free(pstr);
 	if(!buf[0]) return 1;
 	else return 0;
 }
@@ -66,10 +72,11 @@ int matoi(const char *str) {
 
 	size_t len = strlen(str);
 	unsigned int a = 0;
-	char *dump;
 
-	for(a = 0; a < len; a++) { if(!isdigit(str[a])) return -1; }
-	long lret = strtol(str, &dump, 10);
+	if(len > 7) return -1;
+	for(a = 0; a < len; a++) { if(!isdigit(str[a])) return -2; }
+
+	long lret = strtol(str, NULL, 10);
 
 	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
 	else return -2;
