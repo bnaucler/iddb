@@ -16,9 +16,10 @@
 #include <string.h>
 #include <sqlite3.h>
 
-int usage(const char *cmd) {
+int usage(const char *err, const char *cmd) {
 
-	if (errno) printf("Error: %s\n", strerror(errno));
+	if(err[0]) printf("Error: %s\n", err);
+	if(errno) printf("Error: %s\n", strerror(errno));
 
 	printf("%s %s\n", cmd, VER);
 	printf("Usage: %s [options] [operation] [args]\n\n", cmd);
@@ -82,7 +83,7 @@ static int getindex(sqlite3 *db, const int verb) {
 	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	if (verb > 1) printf("Query: %s\n", sql);
 
-	// TODO: Replace with callback? Duplicates at low count. Why?
+	// TODO: Duplicates at low count. Why?
 	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbop == SQLITE_ROW) {
 			ret = matoi((char*)sqlite3_column_text(stmt, a));
@@ -491,8 +492,7 @@ static card *setcarddef(card *c, char **args, const int anum) {
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
 	if (ctable(db)) {
-		errno = EEXIST; // TODO: Better error messages..
-		return usage(cmd);
+		return usage("Could not create/reset database", cmd);
 
 	} else {
 		printf("Database %s created successfully\n", dbpath);
@@ -558,7 +558,7 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	return 0;
 }
 
-// Execute 'new' operation TODO: Default values from args
+// Execute 'new' operation 
 static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	char **args, const int anum) {
 
@@ -575,8 +575,7 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 		else if(f->vfl) printcard(c, f->op, f->mxnum, f->vfl);
 
 	} else {
-		errno = EINVAL;
-		return usage(cmd);
+		return usage("Invalid contact format", cmd);
 	}
 
 	free(c);
@@ -590,7 +589,6 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args,
 	card *head = calloc(1, sizeof(card));
 	card *ccard = head;
 
-	// TODO: Don't delete with head pointer?
 	mkdeck(db, ccard, f, args[0]);
 	if(valcard(ccard)) {
 		delcard(db, head->lid, f->vfl);
@@ -634,7 +632,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 	switch(f->op) {
 
 		case help:
-			return usage(cmd);
+			return usage("", cmd);
 		case create:
 			return exec_create(db, cmd, dbpath);
 		case import:
@@ -688,12 +686,14 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'h':
-				return usage(cmd);
+				return usage("", cmd);
 				break;
 
 			case 'n':
 				f->mxnum = matoi(optarg);
 				if(f->mxnum > NUMCARD) f->mxnum = NUMCARD;
+				else if(f->mxnum < 1)
+					return usage("n cannot be zero or negative", cmd);
 				break;
 
 			case 'v':
@@ -701,7 +701,7 @@ int main(int argc, char **argv) {
 				break;
 
 			default:
-				return usage(cmd);
+				return usage("", cmd);
 				break;
 		}
 	}
@@ -728,7 +728,7 @@ int main(int argc, char **argv) {
 	// Set and verify operation
 	f->op = chops(argv[optind], SBCH);
 	if(f->op < 0) errno = EINVAL;
-	if(errno) return usage(cmd);
+	if(errno) return usage("", cmd);
 
 	// Prepare argument list
 	argc -= optind + 1;
