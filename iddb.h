@@ -114,6 +114,6 @@ extern int valcard(card *c);
 extern int mvcard(sqlite3 *db, int plid, int nlid);
 extern int cpcard(card *dc, const card *sc);
 extern int cmpcard(const card *c1, const card *c2);
-extern int printcard(card *c, const int op, const int mxnum, const int verb);
+extern int printcard(card *c, const flag *f);
 
 #endif

@@ -154,7 +154,10 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 			esccpy(c->ph[c->phnum++], robj(buf, UIDKEY), ESCCHAR, ESCCHAR, PHLEN);
 	}
 
-	if(verc == 2) c->lid = getindex(db, verb);
+	if(verc == 2) {
+		c->lid = getindex(db, verb);
+		c->lid++;
+	}
 
 	free(buf);
 	return c;
@@ -207,8 +210,6 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
 
 	char *err = 0;
-
-	c->lid++;
 
 	snprintf(sql, BBCH, "INSERT INTO id VALUES"
 			"(%d, '%s', '%s', '%s',  '%s', '%s');",
@@ -379,15 +380,17 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	unsigned int a = 0;
 	int rlrc = 0;
 
-	rlrc = readline("Full name", buf, c->fn, NALEN);
-	if(rlrc && !c->fn[0]) return 1;
+	if((rlrc = readline("Full name", buf, c->fn, NALEN)) && !c->fn[0]) return 1;
 	else if(!rlrc) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
-	c->lid = getindex(db, verb);
 
-	rlrc = readline("Organization", buf, c->org, ORLEN);
-	if(!rlrc) esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
+	c->lid = getindex(db, verb);
+	if(c->lid > -1) c->lid++;
+	else return 2;
+
+	if(!readline("Organization", buf, c->org, ORLEN))
+		esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	for(a = 0; a < PHNUM; a++) {
 		snprintf(prompt, MBCH, "Phone %d", a);
@@ -398,8 +401,8 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	for(a = 0; a < EMNUM; a++) {
 		snprintf(prompt, MBCH, "Email %d", a);
-		rlrc = readline(prompt, buf, c->em[a], EMLEN);
-		if(rlrc && !c->em[a][0]) break;
+		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0])
+			break;
 		else if(!rlrc) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
 	}
 	c->emnum = a;
@@ -437,7 +440,7 @@ static int iloop(sqlite3 *db, const flag *f, const char *fname) {
 	int dbrc = wrcard(db, c, f->op, f->vfl);
 
 	if(dbrc) return dbrc;
-	else if(f->vfl) printcard(c, f->op, f->mxnum, f->vfl);
+	else if(f->vfl) printcard(c, f);
 
 	fclose(vf);
 	free(c);
@@ -572,7 +575,7 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	if(valcard(c)) {
 		dbrc = wrcard(db, c, f->op, f->vfl);
 		if(dbrc) printf("SQL Error #: %d\n", dbrc);
-		else if(f->vfl) printcard(c, f->op, f->mxnum, f->vfl);
+		else if(f->vfl) printcard(c, f);
 
 	} else {
 		return usage("Invalid contact format", cmd);
@@ -590,11 +593,12 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args,
 	card *ccard = head;
 
 	mkdeck(db, ccard, f, args[0]);
+
 	if(valcard(ccard)) {
 		delcard(db, head->lid, f->vfl);
 		if(f->vfl) {
 			printf("Deleted card:\n");
-			printcard(ccard, f->op, f->mxnum, 2);
+			printcard(ccard, f);
 		}
 	} else {
 		printf("Found no contact with ID #%d.\n", matoi(args[0]));
@@ -615,8 +619,9 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 
 	mkdeck(db, ccard, f, sstr);
 	ccard = head;
+
 	while(ccard->lid) {
-		printcard(ccard, f->op, f->mxnum, f->vfl);
+		printcard(ccard, f);
 		ccard = ccard->next;
 	}
 
@@ -627,6 +632,7 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 // Execute operations
 static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 	const char *dbpath, const int alen, char **args) {
+
 	errno = 0;
 
 	switch(f->op) {
