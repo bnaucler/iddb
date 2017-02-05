@@ -98,7 +98,7 @@ extern char **unmarshal(char *str, char **arr);
 extern int strst(const char *str, const char *key);
 extern int randstr(char *str, const size_t len);
 extern int readline(char *prompt, char *buf, const char *def, const size_t mxl);
-extern char *robj(char *buf, const char *key);
+extern char *robj(char *buf);
 extern int matoi(const char *str);
 extern void setsrand();
 extern char *atostr(char *str, char **arr, const size_t num);
@@ -107,6 +107,7 @@ extern char *esccpy(char *dest, char *src, const char esc,
 extern int mkpath(char *out, char *dirname, const char *fname,
 	const char div, size_t mxl);
 extern int isemail(const char *str);
+extern int isphone(const char *str, const int mxl);
 
 // Forward declarations - cfunc.c
 extern card **dalloc(int num, int sz);

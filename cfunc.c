@@ -85,3 +85,4 @@ int printcard(card *c, const flag *f) {
 
 	return 0;
 }
+

@@ -55,8 +55,8 @@ int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 	else return 0;
 }
 
-// Format string based on object key
-char *robj(char *buf, const char *key) {
+// Return string between : and \n
+char *robj(char *buf) {
 
 	buf = strtok(buf, ":");
 	buf = strtok(NULL, "\n");
@@ -166,4 +166,34 @@ int isemail(const char *str) {
 	}
 
 	return 0;
+}
+
+// Return 1 if string looks like a phone number
+int isphone(const char *str, const int mxl) {
+
+	unsigned int a = 0, b = 0, inchr = 0;
+
+	char chr[] = "+-0123456789";
+
+	int slen = strlen(str);
+	int clen = strlen(chr);
+
+	if(slen > mxl) return 0;
+
+	for(a = 0; a < slen; a++) {
+		if(isspace(str[a])) continue;
+		else if(a > 0 && str[a] == chr[0]) return 0;
+
+		for(b = 0; b < clen; b++) {
+			if(str[a] == chr[b]) {
+				inchr++;
+				break;
+			}
+		}
+
+		if(!inchr) return 0;
+		inchr = 0;
+	}
+
+	return 1;
 }

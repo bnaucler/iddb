@@ -140,18 +140,28 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 	c->emnum = 0;
 
 	while(fgets(buf, MBCH, f)){
-		if(!strst(buf, STARTKEY)) verc++;
-		else if(!strst(buf, STOPKEY)) verc++;
+
+		if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) verc++;
+
 		else if(!strst(buf, UIDKEY))
-			esccpy(c->uid, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, ULEN);
+			esccpy(c->uid, robj(buf), ESCCHAR, ESCCHAR, ULEN);
+
 		else if(!strst(buf, FNKEY))
-			esccpy(c->fn, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, NALEN);
+			esccpy(c->fn, robj(buf), ESCCHAR, ESCCHAR, NALEN);
+
 		else if(!strst(buf, ORGKEY))
-			esccpy(c->org, robj(buf, UIDKEY), ESCCHAR, ESCCHAR, ORLEN);
-		else if(!strst(buf, EMKEY))
-			esccpy(c->em[c->emnum++], robj(buf, UIDKEY), ESCCHAR, ESCCHAR, EMLEN);
-		else if(!strst(buf, PHKEY))
-			esccpy(c->ph[c->phnum++], robj(buf, UIDKEY), ESCCHAR, ESCCHAR, PHLEN);
+			esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
+
+		else if(!strst(buf, EMKEY)) {
+			strncpy(buf, robj(buf), MBCH);
+			if(isemail(buf))
+				esccpy(c->em[c->emnum++], buf, ESCCHAR, ESCCHAR, EMLEN);
+
+		} else if(!strst(buf, PHKEY)) {
+			strncpy(buf, robj(buf), MBCH);
+			if(isphone(buf, PHLEN))
+				esccpy(c->ph[c->phnum++], buf, ESCCHAR, ESCCHAR, PHLEN);
+		}
 	}
 
 	if(verc == 2) {
@@ -334,7 +344,7 @@ static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
 			cmpc = cmpc->next;
 		}
 
-		if(!isdbl || c == head) {
+		if(isdbl < 2 || c == head) {
 			c = c->next;
 			if(cci >= f->mxnum) return cci;
 		}
@@ -395,7 +405,8 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	for(a = 0; a < PHNUM; a++) {
 		snprintf(prompt, MBCH, "Phone %d", a);
 		if(readline(prompt, buf, "", PHLEN)) break;
-		esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
+		if(isphone(buf, PHLEN)) esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
+		else return 1;
 	}
 	c->phnum = a;
 
