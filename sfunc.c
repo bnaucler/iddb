@@ -197,3 +197,24 @@ int isphone(const char *str, const int mxl) {
 
 	return 1;
 }
+
+// Format phone number to +XXXXXXXX format
+char *formphone(char *dest, const char *src) {
+
+	int a = 0, b = 0;
+	int slen = strlen(src);
+
+	for(a = 0; a < slen; a++) {
+		if(isspace(src[a]) || src[a] == '-') b++;
+		else dest[(a - b)] = src[a];
+	}
+
+	dest[(++a - b)] = '\0';
+
+	if(dest[0] == '0' && dest[1] == '0') {
+		dest++;
+		dest[0] = '+';
+	}
+
+	return dest;
+}

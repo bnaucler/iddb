@@ -134,6 +134,7 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
+	char *fphone = malloc(PHLEN);
 	int verc = 0;
 
 	c->phnum = 0;
@@ -141,18 +142,19 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 
 	while(fgets(buf, MBCH, f)){
 
-		if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) verc++;
+		if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) {
+			verc++;
 
-		else if(!strst(buf, UIDKEY))
+		} else if(!strst(buf, UIDKEY)) {
 			esccpy(c->uid, robj(buf), ESCCHAR, ESCCHAR, ULEN);
 
-		else if(!strst(buf, FNKEY))
+		} else if(!strst(buf, FNKEY)) {
 			esccpy(c->fn, robj(buf), ESCCHAR, ESCCHAR, NALEN);
 
-		else if(!strst(buf, ORGKEY))
+		} else if(!strst(buf, ORGKEY)) {
 			esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
 
-		else if(!strst(buf, EMKEY)) {
+		} else if(!strst(buf, EMKEY)) {
 			strncpy(buf, robj(buf), MBCH);
 			if(isemail(buf))
 				esccpy(c->em[c->emnum++], buf, ESCCHAR, ESCCHAR, EMLEN);
@@ -160,7 +162,8 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 		} else if(!strst(buf, PHKEY)) {
 			strncpy(buf, robj(buf), MBCH);
 			if(isphone(buf, PHLEN))
-				esccpy(c->ph[c->phnum++], buf, ESCCHAR, ESCCHAR, PHLEN);
+				esccpy(c->ph[c->phnum++], formphone(fphone, buf),
+					ESCCHAR, ESCCHAR, PHLEN);
 		}
 	}
 
@@ -170,6 +173,7 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 	}
 
 	free(buf);
+	free(fphone);
 	return c;
 }
 
@@ -385,6 +389,7 @@ static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	char *buf = calloc(MBCH, sizeof(char));
+	char *fphone = calloc(PHLEN, sizeof(char));
 	char *prompt = calloc(MBCH, sizeof(char));
 
 	unsigned int a = 0;
@@ -405,8 +410,9 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	for(a = 0; a < PHNUM; a++) {
 		snprintf(prompt, MBCH, "Phone %d", a);
 		if(readline(prompt, buf, "", PHLEN)) break;
-		if(isphone(buf, PHLEN)) esccpy(c->ph[a], buf, ESCCHAR, ESCCHAR, MBCH);
-		else return 1;
+		if(isphone(buf, PHLEN)) {
+			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH);
+		} else return 1;
 	}
 	c->phnum = a;
 
@@ -419,6 +425,7 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	c->emnum = a;
 
 	free(buf);
+	free(fphone);
 	free(prompt);
 
 	return 0;

@@ -108,6 +108,7 @@ extern int mkpath(char *out, char *dirname, const char *fname,
 	const char div, size_t mxl);
 extern int isemail(const char *str);
 extern int isphone(const char *str, const int mxl);
+extern char *formphone(char *output, const char *input);
 
 // Forward declarations - cfunc.c
 extern card **dalloc(int num, int sz);
