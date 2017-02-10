@@ -281,8 +281,8 @@ static card *readid(card *c, const char *cn, const char *ct) {
 	return c;
 }
 
-// Create SQL search string TODO: Return something useful
-static int mksqlstr(int svar, char *sql, const char *str) {
+// Create SQL search string from svar
+static char *mksqlstr(int svar, char *sql, const char *str) {
 
 	switch(svar) {
 		case lid:
@@ -311,7 +311,7 @@ static int mksqlstr(int svar, char *sql, const char *str) {
 
 	}
 
-	return 0;
+	return sql;
 }
 
 // Return entry from database
@@ -366,19 +366,16 @@ static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 	unsigned int a = 0, cci = 0;
 
 	if(!str) {
-		snprintf(sql, BBCH, "SELECT * FROM id;");
-		cci = searchdb(db, c, f, sql, cci);
+		cci = searchdb(db, c, f, "SELECT * FROM id;", cci);
 
 	} else if (f->sfl < 0) {
 		for(a = 0; a < 6; a++) {
 			if(cci >= f->mxnum) return cci;
-			mksqlstr(a, sql, str);
-			cci = searchdb(db, c, f, sql, cci);
+			cci = searchdb(db, c, f, mksqlstr(a, sql, str), cci);
 		}
 
 	} else {
-		mksqlstr(f->sfl, sql, str);
-		cci = searchdb(db, c, f, sql, cci);
+		cci = searchdb(db, c, f, mksqlstr(f->sfl, sql, str), cci);
 	}
 
 	free(sql);
@@ -512,13 +509,10 @@ static card *setcarddef(card *c, char **args, const int anum) {
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
-	if (ctable(db)) {
-		return usage("Could not create/reset database", cmd);
+	if (ctable(db)) return usage("Could not create/reset database", cmd);
+	else printf("Database %s created successfully\n", dbpath);
 
-	} else {
-		printf("Database %s created successfully\n", dbpath);
-		return 0;
-	}
+	return 0;
 }
 
 // Execute import operation
@@ -583,16 +577,13 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	char **args, const int anum) {
 
-	int dbrc = 0;
-
 	card *c = calloc(1, sizeof(card));
 	c = setcarddef(c, args, anum);
 
 	if(mknew(db, c, f->vfl)) return 1;
 
 	if(valcard(c)) {
-		dbrc = wrcard(db, c, f->op, f->vfl);
-		if(dbrc) printf("SQL Error #: %d\n", dbrc);
+		if(wrcard(db, c, f->op, f->vfl)) printf("SQL Error #: %d\n", dbrc);
 		else if(f->vfl) printcard(c, f);
 
 	} else {
