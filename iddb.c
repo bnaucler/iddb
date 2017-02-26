@@ -85,14 +85,11 @@ static int getindex(sqlite3 *db, const int verb) {
 
 	// TODO: Duplicates at low count. Why?
 	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
-		if(dbop == SQLITE_ROW) {
-			ret = matoi((char*)sqlite3_column_text(stmt, a));
-		}
+		if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
 	}
 
 	free(sql);
-	if(ret > -1) return ret;
-	else return -1;
+	return ret;
 }
 
 // Export card to file
@@ -155,14 +152,12 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 			esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
 
 		} else if(!strst(buf, EMKEY)) {
-			strncpy(buf, robj(buf), MBCH);
 			if(isemail(buf))
-				esccpy(c->em[c->emnum++], buf, ESCCHAR, ESCCHAR, EMLEN);
+				esccpy(c->em[c->emnum++], robj(buf), ESCCHAR, ESCCHAR, EMLEN);
 
 		} else if(!strst(buf, PHKEY)) {
-			strncpy(buf, robj(buf), MBCH);
 			if(isphone(buf, PHLEN))
-				esccpy(c->ph[c->phnum++], formphone(fphone, buf),
+				esccpy(c->ph[c->phnum++], formphone(fphone, robj(buf)),
 					ESCCHAR, ESCCHAR, PHLEN);
 		}
 	}
@@ -509,7 +504,7 @@ static card *setcarddef(card *c, char **args, const int anum) {
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
-	if (ctable(db)) return usage("Could not create/reset database", cmd);
+	if(ctable(db)) return usage("Could not create/reset database", cmd);
 	else printf("Database %s created successfully\n", dbpath);
 
 	return 0;
@@ -530,6 +525,7 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 
 		if(vd && !errno) {
 			ctr += import_dir(db, vd, f, fpath, args[a], ctr);
+			closedir(vd);
 
 		} else {
 			if(iloop(db, f, args[a])) {
@@ -543,7 +539,6 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 
 	if(f->vfl) printf("%d File(s) imported\n", ctr);
 
-	closedir(vd);
 	free(fpath);
 	return 0;
 }
@@ -577,13 +572,15 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	char **args, const int anum) {
 
+	int dbrc = 0;
+
 	card *c = calloc(1, sizeof(card));
 	c = setcarddef(c, args, anum);
 
 	if(mknew(db, c, f->vfl)) return 1;
 
 	if(valcard(c)) {
-		if(wrcard(db, c, f->op, f->vfl)) printf("SQL Error #: %d\n", dbrc);
+		if((dbrc = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", dbrc);
 		else if(f->vfl) printcard(c, f);
 
 	} else {
@@ -725,6 +722,7 @@ int main(int argc, char **argv) {
 	if(!dbpath[0])
 		snprintf(dbpath, MBCH, "%s%c%s", getenv("HOME"), DDIV, DBNAME);
 	if(sqlite3_open(dbpath, &db)) errno = ENOENT;
+	else errno = 0;
 
 	// Dump DB if no argument has been given
 	if(argc <= optind && !errno) {
