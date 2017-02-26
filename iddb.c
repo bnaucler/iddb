@@ -131,6 +131,7 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
+	char *sbuf = malloc(SBCH);
 	char *fphone = malloc(PHLEN);
 	int verc = 0;
 
@@ -156,9 +157,11 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 				esccpy(c->em[c->emnum++], robj(buf), ESCCHAR, ESCCHAR, EMLEN);
 
 		} else if(!strst(buf, PHKEY)) {
-			if(isphone(buf, PHLEN))
-				esccpy(c->ph[c->phnum++], formphone(fphone, robj(buf)),
+			strncpy(sbuf, robj(buf), SBCH);
+			if(isphone(sbuf, PHLEN)) {
+				esccpy(c->ph[c->phnum++], formphone(fphone, sbuf),
 					ESCCHAR, ESCCHAR, PHLEN);
+			}
 		}
 	}
 
@@ -168,6 +171,7 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 	}
 
 	free(buf);
+	free(sbuf);
 	free(fphone);
 	return c;
 }
