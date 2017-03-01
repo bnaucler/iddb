@@ -18,8 +18,8 @@
 
 int usage(const char *err, const char *cmd) {
 
-	if(err[0]) printf("Error: %s\n", err);
-	if(errno) printf("Error: %s\n", strerror(errno));
+	if(err[0]) fprintf(stderr, "Error: %s\n", err);
+	if(errno) fprintf(stderr, "Error: %s\n", strerror(errno));
 
 	printf("%s %s\n", cmd, VER);
 	printf("Usage: %s [options] [operation] [args]\n\n", cmd);
@@ -79,12 +79,11 @@ static int getindex(sqlite3 *db, const int verb) {
 	char *sql = calloc(BBCH, sizeof(char));
 	sqlite3_stmt *stmt;
 
-	snprintf(sql, BBCH, "SELECT num FROM ctr;");
+	snprintf(sql, BBCH, "SELECT COUNT(*) FROM id;");
 
 	int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
 	if (verb > 1) printf("Query: %s\n", sql);
 
-	// TODO: Duplicates at low count. Why?
 	while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
 	}
@@ -128,7 +127,7 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	return fpath;
 }
 
-// Import card to struct
+// Import card to struct TODO: Support for files with multiple cards
 static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
@@ -189,31 +188,8 @@ static int ctable(sqlite3 *db) {
 		" org TEXT, ph TEXT, em TEXT);", DBCH);
 	dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
-	if(!dbrc) {
-		strncpy(sql, "DROP TABLE IF EXISTS ctr;"
-			"CREATE TABLE ctr(num INT);", DBCH);
-		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-		if(!dbrc) strncpy(sql, "INSERT INTO ctr VALUES(0);", BBCH);
-		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-	}
-
 	free(sql);
 	return dbrc;
-}
-
-// Write counter to index
-static int wrindex(sqlite3 *db, const int i, const int verb) {
-
-	char *sql = calloc(BBCH, sizeof(char));
-	char *err = 0;
-
-	snprintf(sql, BBCH, "UPDATE ctr SET num = %d;", i);
-	int ret = sqlite3_exec(db, sql, 0, 0, &err);
-
-	if(verb > 1) printf("Query: %s\n", sql);
-
-	free(sql);
-	return ret;
 }
 
 // Write struct to DB
@@ -234,7 +210,6 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 	if (verb > 1) printf("Query: %s\n", sql);
 
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-	if(!dbrc) wrindex(db, c->lid, verb);
 
 	free(sql);
 	free(pbuf);
@@ -398,8 +373,7 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 
 	c->lid = getindex(db, verb);
-	if(c->lid > -1) c->lid++;
-	else return 2;
+	c->lid++;
 
 	if(!readline("Organization", buf, c->org, ORLEN))
 		esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
@@ -437,7 +411,6 @@ static int delcard(sqlite3 *db, int clid, int verb) {
 
 	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", clid);
 	if(last != clid) { if(mvcard(db, clid, last)) return -1; }
-	wrindex(db, --last, verb);
 
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
