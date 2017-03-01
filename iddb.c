@@ -59,6 +59,7 @@ static int chops(const char *cop, size_t mxl) {
 	unsigned int a = 0;
 
 	for(a = 0; a < clen; a++) lccop[a] = tolower(cop[a]);
+	lccop[clen] = 0;
 
 	for(a = 0; a < opnum; a++) {
 		if(clen == 1) { if(lccop[0] == vops[a][0]) return a; }
@@ -621,11 +622,12 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args,
 static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg) {
 
 	char *sstr = calloc(BBCH, sizeof(char));
+	char *tstr = calloc(BBCH, sizeof(char));
 
 	card *head = calloc(1, sizeof(card));
 	card *ccard = head;
 
-	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
+	strncpy(sstr, atostr(tstr, args, numarg), BBCH);
 
 	mkdeck(db, ccard, f, sstr);
 	ccard = head;
@@ -636,6 +638,7 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 	}
 
 	free(sstr);
+	free(tstr);
 	return 0;
 }
 
@@ -732,11 +735,12 @@ int main(int argc, char **argv) {
 	if(argc <= optind && !errno) {
 		f->op = all;
 		ret = exec_search(db, f, NULL, 0);
+
 		sqlite3_close(db);
 		return ret;
 
 	// Create database if it doesn't exist
-	} else if(errno == ENOENT) {
+	} else if(errno) {
 		exec_create(db, cmd, dbpath);
 		errno = 0;
 		if(argc <= optind) return 0;
