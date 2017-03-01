@@ -30,6 +30,15 @@ Unless otherwise specified, the binary will be installed in `/usr/bin` and the d
 
 Add option `-v` for verbose or `-vv` for debug output.
 
+## iddb & mutt
+To search your iddb address book from mutt, enter the following in your `.muttrc`:  
+```
+set query_command= "iddb mail %s"
+bind editor <Tab> complete-query
+```
+
+There is currently no hook for adding addresses to iddb from mutt. This will be added shortly.
+
 ## Contributing
 Submit an issue or send a pull request if you feel inclined to get involved.
 
