@@ -24,22 +24,22 @@ int usage(const char *err, const char *cmd) {
 	printf("%s %s\n", cmd, VER);
 	printf("Usage: %s [options] [operation] [args]\n\n", cmd);
 	printf("Operations:\n"
-			"h[elp]    Display this text\n"
-			"c[reate]  Create or reset database\n"
-			"a[ll]     Search and display all contact information\n"
-			"i[mport]  Import VCF from file(s) or dir(s)\n"
-			"e[xport]  Search and export output to VCF\n"
-			"p[hone]   Search and display phone numbers\n"
-			"m[ail]    Search and display email addresses\n"
-			"n[ew]     Interactively add new contact\n"
-			"d[elete]  Delete user with specified ID\n\n"
+			"    h[elp]    Display this text\n"
+			"    c[reate]  Create or reset database\n"
+			"    a[ll]     Search and display all contact information\n"
+			"    i[mport]  Import VCF from file(s) or dir(s)\n"
+			"    e[xport]  Search and export output to VCF\n"
+			"    p[hone]   Search and display phone numbers\n"
+			"    m[ail]    Search and display email addresses\n"
+			"    n[ew]     Interactively add new contact\n"
+			"    d[elete]  Delete user with specified ID\n\n"
 
 			"Options:\n"
-			"-d dir    Specify output directory for export\n"
-			"-f file   Specify database file\n"
-			"-h        Display this text\n"
-			"-n num    Display max num results\n"
-			"-v        Increase verbosity level:\n");
+			"    -d dir    Specify output directory for export\n"
+			"    -f file   Specify database file\n"
+			"    -h        Display this text\n"
+			"    -n num    Display max num results\n"
+			"    -v        Increase verbosity level:\n");
 
 	return errno;
 }
@@ -53,7 +53,7 @@ static int chops(const char *cop, size_t mxl) {
 	int clen = strlen(cop);
 	if(clen > mxl) return -1;
 
-	char lccop[(clen +1)];
+	char lccop[(clen + 1)];
 	int opnum = sizeof(vops) / sizeof(vops[0]);
 
 	unsigned int a = 0;
@@ -207,7 +207,7 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 			marshal(pbuf, c->phnum, PHLEN, c->ph),
 			marshal(mbuf, c->emnum, EMLEN, c->em));
 
-	if (verb > 1) printf("Query: %s\n", sql);
+	if(verb > 1) printf("Query: %s\n", sql);
 
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
@@ -224,9 +224,9 @@ static card *readid(card *c, const char *cn, const char *ct) {
 	unsigned int a = 0;
 
 	if(!strcmp("lid", cn)) c->lid = matoi(ct);
-	else if(!strcmp("uid", cn)) strcpy(c->uid, ct);
-	else if(!strcmp("fn", cn)) strcpy(c->fn, ct);
-	else if(!strcmp("org", cn)) strcpy(c->org, ct);
+	else if(!strcmp("uid", cn)) strncpy(c->uid, ct, ULEN);
+	else if(!strcmp("fn", cn)) strncpy(c->fn, ct, NALEN);
+	else if(!strcmp("org", cn)) strncpy(c->org, ct, ORLEN);
 
 	else if(!strcmp("ph", cn)) {
 		char **parr = calloc(PHNUM * PHLEN, sizeof(char));
@@ -471,8 +471,8 @@ static card *setcarddef(card *c, char **args, const int anum) {
 			strncat(c->fn, args[a], NALEN);
 
 		} else {
-			if(c->org[0]) strncat(c->org, " ", NALEN);
-			strncat(c->org, args[a], NALEN);
+			if(c->org[0]) strncat(c->org, " ", ORLEN);
+			strncat(c->org, args[a], ORLEN);
 		}
 	}
 
@@ -492,7 +492,7 @@ static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 	const int numf) {
 
-	unsigned int a = 0, ctr = 0;;
+	unsigned int a = 0, ctr = 0;
 	DIR *vd;
 
 	char *fpath = calloc(MBCH, sizeof(char));
