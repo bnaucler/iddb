@@ -173,7 +173,7 @@ int isphone(const char *str, const int mxl) {
 
 	unsigned int a = 0, b = 0, inchr = 0;
 
-	char chr[] = "+-0123456789";
+	char chr[] = "+-()0123456789";
 
 	int slen = strlen(str);
 	int clen = strlen(chr);
@@ -205,7 +205,8 @@ char *formphone(char *dest, const char *src) {
 	int slen = strlen(src);
 
 	for(a = 0; a < slen; a++) {
-		if(isspace(src[a]) || src[a] == '-') b++;
+		if(isspace(src[a]) || src[a] == '-' ||
+				src[a] == '(' || src[a] == ')') b++;
 		else dest[(a - b)] = src[a];
 	}
 
