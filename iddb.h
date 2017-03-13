@@ -39,6 +39,7 @@
 #define EMNUM 10
 #define PHNUM 10
 
+#define FBCH 4096
 #define DBCH 2048
 #define BBCH 512
 #define MBCH 128
@@ -64,7 +65,7 @@
 #define DDIV '/'
 
 // Type definitions and enumerations
-typedef enum op {create, delete, import, export, help, phone, mail, new, all} op;
+typedef enum op {create, delete, import, export, help, phone, raw, mail, new, all} op;
 typedef enum svar {lid, uid, fn, org, em, ph} svar;
 
 typedef struct card {
@@ -109,6 +110,8 @@ extern int mkpath(char *out, char *dirname, const char *fname,
 extern int isemail(const char *str);
 extern int isphone(const char *str, const int mxl);
 extern char *formphone(char *output, const char *input);
+extern char *remchar(char *str, const char ch);
+extern char *remtchar(char *str, const char ch);
 
 // Forward declarations - cfunc.c
 extern int valcard(card *c);

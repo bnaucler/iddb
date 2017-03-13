@@ -219,3 +219,33 @@ char *formphone(char *dest, const char *src) {
 
 	return dest;
 }
+
+// Remove all occurances of ch from str
+char *remchar(char *str, const char ch) {
+
+	char *src, *dest;
+
+	for (src = dest = str; *src; src++) {
+        if (*src == ch) continue;
+        else *dest++ = *src;
+    }
+
+	*dest = 0;
+
+	return str;
+}
+
+// Remove all trailing ch from str
+char *remtchar(char *str, const char ch) {
+
+	int slen = strlen(str);
+
+	unsigned int a = 0;
+
+	for(a = slen; a > 0; a--) {
+		if(str[a] == ch) str[a] = 0;
+		else break;
+	}
+
+	return str;
+}
