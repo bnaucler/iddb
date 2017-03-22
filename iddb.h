@@ -56,6 +56,7 @@
 #define PHKEY "TEL"
 #define FNKEY "FN"
 #define ADDRKEY "ADR"
+#define FRKEY "FROM:"
 
 #define CITEMS 3
 #define NUMCARD 1000

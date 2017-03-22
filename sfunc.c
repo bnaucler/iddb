@@ -41,16 +41,21 @@ int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 
 	char *pstr = calloc(mxl, sizeof(char));
 
+	FILE *tty = fopen("/dev/tty", "r");
 	memset(buf, 0, mxl);
 
 	if(def[0]) snprintf(pstr, mxl, "%s (Default: %s)", prompt, def);
 	else strncpy(pstr, prompt, mxl);
 
-	if(pstr) printf("%s: ", pstr);
-	fgets(buf, mxl, stdin);
-	buf[(strlen(buf) - 1)] = '\0';
+	if(pstr[0]) printf("%s: ", pstr);
+	fgets(buf, mxl, tty);
+
+	buf[(strlen(buf) - 1)] = 0;
 
 	free(pstr);
+
+	fclose(tty);
+
 	if(!buf[0]) return 1;
 	else return 0;
 }
@@ -242,7 +247,7 @@ char *remtchar(char *str, const char ch) {
 
 	unsigned int a = 0;
 
-	for(a = slen; a > 0; a--) {
+	for(a = slen - 1; a > 0; a--) {
 		if(str[a] == ch) str[a] = 0;
 		else break;
 	}

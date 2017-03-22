@@ -30,6 +30,7 @@ int usage(const char *err, const char *cmd) {
 			"    i[mport]  Import VCF from file(s) or dir(s)\n"
 			"    e[xport]  Search and export output to VCF\n"
 			"    p[hone]   Search and display phone numbers\n"
+			"    r[aw]     Interactively add user from raw email dump\n"
 			"    m[ail]    Search and display email addresses\n"
 			"    n[ew]     Interactively add new contact\n"
 			"    d[elete]  Delete user with specified ID\n\n"
@@ -47,8 +48,8 @@ int usage(const char *err, const char *cmd) {
 // Check for valid operation
 static int chops(const char *cop, size_t mxl) {
 
-	char vops[9][7] = {"create", "delete", "import", "export", "help",
-		"phone", "mail", "new", "all"};
+	char vops[10][7] = {"create", "delete", "import", "export", "help",
+		"phone", "raw", "mail", "new", "all"};
 
 	int clen = strlen(cop);
 	if(clen > mxl) return -1;
@@ -165,10 +166,7 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 		}
 	}
 
-	if(verc == 2) {
-		c->lid = getindex(db, verb);
-		c->lid++;
-	}
+	if(verc == 2) c->lid = getindex(db, verb) + 1;
 
 	free(buf);
 	free(sbuf);
@@ -372,8 +370,7 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 
-	c->lid = getindex(db, verb);
-	c->lid++;
+	c->lid = getindex(db, verb) + 1;
 
 	if(!readline("Organization", buf, c->org, ORLEN))
 		esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
@@ -546,7 +543,7 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	return 0;
 }
 
-// Execute 'new' operation 
+// Execute 'new' operation
 static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 	char **args, const int anum) {
 
@@ -615,6 +612,48 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 	return 0;
 }
 
+// Execute 'raw' operation TODO: Get more data from signature
+static int exec_raw(sqlite3 *db, const flag *f) {
+
+	char *buf = calloc(BBCH, sizeof(char));
+	char *nbuf = calloc(BBCH, sizeof(char));
+
+	card *c = calloc(1, sizeof(card));
+
+	int ret = 0;
+	unsigned int a = 0, b = 0, d = 0, isem = 0;
+
+	// TODO: Make less ugly
+	while(fgets(buf, BBCH, stdin)) {
+		if(!strst(buf, FRKEY)) {
+			strncpy(nbuf, robj(buf), BBCH);
+			int slen = strlen(nbuf);
+			for(a = 0; a < slen; a++) {
+				if(nbuf[a] == '<') isem++;
+				else if(nbuf[a] == '>') break;
+				else if(!isem) {
+					if(!c->fn[0] && isspace(nbuf[a])) {} // nothing
+					else c->fn[b++] = nbuf[a];
+				}
+				else c->em[0][d++] = nbuf[a];
+			}
+
+		}
+	}
+
+	if(c->fn[0]) remtchar(c->fn, ' ');
+
+	ret = mknew(db, c, f->vfl);
+
+	if(!ret && valcard(c)) {
+		if((ret = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", ret);
+		else if(f->vfl) printcard(c, f);
+	} 
+
+	free(buf);
+	return ret;
+}
+
 // Execute operations
 static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 	const char *dbpath, const int alen, char **args) {
@@ -635,6 +674,8 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 			return exec_new(db, f, cmd, args, alen);
 		case delete:
 			return exec_delete(db, f, args, alen);
+		case raw:
+			return exec_raw(db, f);
 		default:
 			return exec_search(db, f, args, alen);
 	}
@@ -649,6 +690,7 @@ static void iflag(flag *f) {
 	f->sfl = -1;
 }
 
+// TODO: operation for adding email from raw dump
 int main(int argc, char **argv) {
 
 	char *cmd = calloc(MBCH, sizeof(char));

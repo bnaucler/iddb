@@ -55,7 +55,7 @@ int printcard(card *c, const flag *f) {
 
 	if(!c->lid) return 1;
 
-	if(f->op == all || f->op == new || f->op == delete) {
+	if(f->op == all || f->op == new || f->op == delete || f->op == raw) {
 		if(f->vfl) printf("%d: ", c->lid);
 		printf("%s ", c->fn);
 		if(c->org[0]) printf("(%s)\n", c->org);
