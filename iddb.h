@@ -104,7 +104,7 @@ extern char *robj(char *buf);
 extern int matoi(const char *str);
 extern void setsrand();
 extern char *atostr(char *str, char **arr, const size_t num);
-extern char *esccpy(char *dest, char *src, const char esc,
+extern char *esccpy(char *dest, const char *src, const char esc,
 	const char pref, size_t mxl);
 extern int mkpath(char *out, char *dirname, const char *fname,
 	const char div, size_t mxl);

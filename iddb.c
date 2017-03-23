@@ -380,7 +380,10 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 		if(readline(prompt, buf, "", PHLEN)) break;
 		if(isphone(buf, PHLEN)) {
 			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH);
-		} else return 1;
+		} else {
+			if(verb) fprintf(stderr, "Error: Incorrect phone number format\n");
+			return 1;
+		}
 	}
 	c->phnum = a;
 
@@ -476,6 +479,34 @@ static card *setcarddef(card *c, char **args, const int anum) {
 	return c;
 }
 
+// Read card data from raw email dump
+static int rawread(card *c, const flag *f) {
+
+	char *buf = calloc(BBCH, sizeof(char));
+	char *nbuf = calloc(BBCH, sizeof(char));
+
+	unsigned int a = 0, b = 0, isn = 1;
+
+	while(fgets(buf, BBCH, stdin)) {
+		if(!strst(buf, FRKEY)) {
+			strncpy(nbuf, robj(buf), BBCH);
+			int slen = strlen(nbuf);
+			for(a = 0; a < slen; a++) {
+				if(nbuf[a] == '<') b = isn = 0;
+				else if(nbuf[a] == '>') break; 
+				else if(isn) c->fn[b++] = nbuf[a]; 
+				else c->em[0][b++] = nbuf[a];
+			}
+
+		}
+	}
+
+	free(buf);
+	free(nbuf);
+
+	return 0;
+}
+
 // Execute create operation
 static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
 
@@ -554,7 +585,7 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 
 	if(mknew(db, c, f->vfl)) return 1;
 
-	if(valcard(c)) {
+	if(!valcard(c)) {
 		if((dbrc = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", dbrc);
 		else if(f->vfl) printcard(c, f);
 
@@ -575,12 +606,13 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args,
 
 	mkdeck(db, ccard, f, args[0]);
 
-	if(valcard(ccard)) {
+	if(!valcard(ccard)) {
 		delcard(db, head->lid, f->vfl);
 		if(f->vfl) {
 			printf("Deleted card:\n");
 			printcard(ccard, f);
 		}
+
 	} else {
 		printf("Found no contact with ID #%d.\n", matoi(args[0]));
 	}
@@ -612,45 +644,21 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 	return 0;
 }
 
-// Execute 'raw' operation TODO: Get more data from signature
+// Execute 'raw' operation TODO: better handling of return values
 static int exec_raw(sqlite3 *db, const flag *f) {
-
-	char *buf = calloc(BBCH, sizeof(char));
-	char *nbuf = calloc(BBCH, sizeof(char));
 
 	card *c = calloc(1, sizeof(card));
 
-	int ret = 0;
-	unsigned int a = 0, b = 0, d = 0, isem = 0;
-
-	// TODO: Make less ugly
-	while(fgets(buf, BBCH, stdin)) {
-		if(!strst(buf, FRKEY)) {
-			strncpy(nbuf, robj(buf), BBCH);
-			int slen = strlen(nbuf);
-			for(a = 0; a < slen; a++) {
-				if(nbuf[a] == '<') isem++;
-				else if(nbuf[a] == '>') break;
-				else if(!isem) {
-					if(!c->fn[0] && isspace(nbuf[a])) {} // nothing
-					else c->fn[b++] = nbuf[a];
-				}
-				else c->em[0][d++] = nbuf[a];
-			}
-
-		}
-	}
+	int ret = rawread(c, f);
 
 	if(c->fn[0]) remtchar(c->fn, ' ');
+	if(!ret) ret = mknew(db, c, f->vfl);
 
-	ret = mknew(db, c, f->vfl);
-
-	if(!ret && valcard(c)) {
+	if(!ret && !valcard(c)) {
 		if((ret = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", ret);
 		else if(f->vfl) printcard(c, f);
 	} 
 
-	free(buf);
 	return ret;
 }
 
@@ -690,7 +698,6 @@ static void iflag(flag *f) {
 	f->sfl = -1;
 }
 
-// TODO: operation for adding email from raw dump
 int main(int argc, char **argv) {
 
 	char *cmd = calloc(MBCH, sizeof(char));

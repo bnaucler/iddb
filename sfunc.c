@@ -66,6 +66,8 @@ char *robj(char *buf) {
 	buf = strtok(buf, ":");
 	buf = strtok(NULL, "\n");
 
+	if(isspace(buf[0])) memmove(buf, buf + 1, strlen(buf));
+
 	int p = strlen(buf) - 1;
 	while(!isalnum(buf[p])) buf[p--] = '\0';
 
@@ -110,7 +112,7 @@ char *atostr(char *str, char **arr, const size_t num) {
 }
 
 // Escape str by prefixing char esc
-char *esccpy(char *dest, char *src, const char esc,
+char *esccpy(char *dest, const char *src, const char esc,
 	const char pref, size_t mxl) {
 
 	if(!strchr(src, esc)) {

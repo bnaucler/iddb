@@ -11,11 +11,11 @@
 #include <string.h>
 #include <sqlite3.h>
 
-// Return 1 if card has LID and FN, else return 0
+// Return 0 if card has LID and FN, else return 1
 int valcard(card *c) {
 
-	if(c->lid > 0 && c->fn[0]) return 1;
-	else return 0;
+	if(c->lid > 0 && c->fn[0]) return 0;
+	else return 1;
 }
 
 // Change card LID from plid to nlid
