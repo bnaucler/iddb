@@ -1,4 +1,4 @@
-# iddb v0.3A
+# iddb v0.4A
 A minimalist identity database to manage your contacts.  
 
 ## Written by

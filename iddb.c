@@ -483,6 +483,8 @@ static card *setcarddef(card *c, char **args, const int anum) {
 static int orgfromemail(card *c) {
 
 	int len = strlen(c->em[0]);
+	if(len < 1) return 1;
+
 	char *p1 = calloc(len, sizeof(char));
 	char *p2 = p1;
 
@@ -675,8 +677,6 @@ static int exec_raw(sqlite3 *db, const flag *f) {
 	int ret = rawread(c, f);
 
 	if(c->fn[0]) remtchar(c->fn, ' ');
-
-	// strncpy(c->org, orgfromemail(c, orgp), ORLEN);
 	orgfromemail(c);
 
 	if(!ret) ret = mknew(db, c, f->vfl);
