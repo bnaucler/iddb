@@ -479,6 +479,31 @@ static card *setcarddef(card *c, char **args, const int anum) {
 	return c;
 }
 
+// Guess organization name from email address
+static int orgfromemail(card *c) {
+
+	unsigned int a = 0, b = 0, sep = 0;
+
+	int len = strlen(c->em[0]);
+
+	for(a = 0; a < len; a++) {
+		if(c->em[0][a] == '@') sep++;	
+		else if(sep) c->org[b++] = c->em[0][a];
+	}
+
+	if(!c->org[0]) return 1;
+
+	len = strlen(c->org);
+
+	for(a = len; a > 0; a--) {
+		if(c->org[a] == '.') sep = a;
+	}
+	c->org[sep] = 0;
+
+	c->org[0] = toupper(c->org[0]);
+	return 0;
+}
+
 // Read card data from raw email dump
 static int rawread(card *c, const flag *f) {
 
@@ -652,6 +677,8 @@ static int exec_raw(sqlite3 *db, const flag *f) {
 	int ret = rawread(c, f);
 
 	if(c->fn[0]) remtchar(c->fn, ' ');
+	orgfromemail(c);
+
 	if(!ret) ret = mknew(db, c, f->vfl);
 
 	if(!ret && !valcard(c)) {
