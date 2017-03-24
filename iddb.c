@@ -355,15 +355,53 @@ static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 	return cci;
 }
 
-// Read new card from stdin
+// Interactively add new phone number
+static int mknewphone(card *c, char *prompt, char *buf) {
+
+	char *fphone = calloc(PHLEN, sizeof(char));
+
+	unsigned int a = 0;
+
+	for(a = 0; a < PHNUM; a++) {
+		snprintf(prompt, MBCH, "Phone %d", a);
+		if(readline(prompt, buf, "", PHLEN)) break;
+		if(isphone(buf, PHLEN))
+			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH); 
+		else return 1;
+	}
+
+	c->phnum = a;
+
+	free(fphone);
+	return 0;
+}
+
+// Interactively add new email
+static int mknewemail(card *c, char *prompt, char *buf) {
+
+	unsigned int a = 0, rlrc = 0;
+
+	for(a = 0; a < EMNUM; a++) {
+		snprintf(prompt, MBCH, "Email %d", a);
+		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0]) break;
+		else if(!rlrc) {
+			if(isemail(buf)) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH); 
+			else return 1;
+		}
+	}
+
+	c->emnum = a;
+
+	return 0;
+}
+
+// Interactively add new card
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	char *buf = calloc(MBCH, sizeof(char));
-	char *fphone = calloc(PHLEN, sizeof(char));
 	char *prompt = calloc(MBCH, sizeof(char));
 
-	unsigned int a = 0;
-	int rlrc = 0;
+	unsigned int rlrc = 0;
 
 	if((rlrc = readline("Full name", buf, c->fn, NALEN)) && !c->fn[0]) return 1;
 	else if(!rlrc) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
@@ -375,34 +413,17 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	if(!readline("Organization", buf, c->org, ORLEN))
 		esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
-	for(a = 0; a < PHNUM; a++) {
-		snprintf(prompt, MBCH, "Phone %d", a);
-		if(readline(prompt, buf, "", PHLEN)) break;
-		if(isphone(buf, PHLEN)) {
-			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH);
-		} else {
-			fprintf(stderr, "Error: Incorrect phone number format\n");
-			return 1;
-		}
+	if(mknewphone(c, prompt, buf)) {
+		fprintf(stderr, "Error: Incorrect phone number format\n");
+		return 1;
 	}
-	c->phnum = a;
 
-	for(a = 0; a < EMNUM; a++) {
-		snprintf(prompt, MBCH, "Email %d", a);
-		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0]) break;
-		else if(!rlrc) {
-			if(isemail(buf)) {
-				esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
-			} else {
-				fprintf(stderr, "Error: Incorrect email address format\n");
-				return 1;
-			}
-		}
+	if(mknewemail(c, prompt, buf)) {
+		fprintf(stderr, "Error: Incorrect email address format\n");
+		return 1;
 	}
-	c->emnum = a;
 
 	free(buf);
-	free(fphone);
 	free(prompt);
 
 	return 0;
