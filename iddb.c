@@ -381,7 +381,7 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 		if(isphone(buf, PHLEN)) {
 			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH);
 		} else {
-			if(verb) fprintf(stderr, "Error: Incorrect phone number format\n");
+			fprintf(stderr, "Error: Incorrect phone number format\n");
 			return 1;
 		}
 	}
@@ -389,9 +389,15 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	for(a = 0; a < EMNUM; a++) {
 		snprintf(prompt, MBCH, "Email %d", a);
-		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0])
-			break;
-		else if(!rlrc) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
+		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0]) break;
+		else if(!rlrc) {
+			if(isemail(buf)) {
+				esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
+			} else {
+				fprintf(stderr, "Error: Incorrect email address format\n");
+				return 1;
+			}
+		}
 	}
 	c->emnum = a;
 
