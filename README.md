@@ -7,7 +7,7 @@ Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 Compiled and tested on Arch Linux 4.9 (amd64) and MacOS Sierra, but should work pretty much anywhere.
 
 ## Why iddb?
-iddb is written to be lightweight, portable, lightning fast and requiring minimal storage space.  
+iddb is lightweight, portable, lightning fast and requiring minimal storage space.  
 This might be useful in embedded applications or legacy systems.  
 However; for most applications you'll find [abook](http://abook.sourceforge.net/) or [khard](https://github.com/scheibler/khard) much more useful.
 
@@ -15,8 +15,10 @@ However; for most applications you'll find [abook](http://abook.sourceforge.net/
 * SQLite3
 
 ## Installation
-`sudo make all install`  
-`iddb create`
+```
+sudo make all install
+iddb create
+```
 
 Unless otherwise specified, the binary will be installed in `/usr/bin` and the database at `$HOME/.iddb.sl3`
 
@@ -32,11 +34,15 @@ Add option `-v` for verbose or `-vv` for debug output.
 
 ## iddb & mutt
 To search your iddb address book from mutt, enter the following in your `.muttrc`:  
-`set query_command= "iddb mail %s"`  
-`bind editor <Tab> complete-query`
+```
+set query_command= "iddb mail %s"
+bind editor <Tab> complete-query
+```
 
 And to add the selected sender to your iddb address book:  
-`macro index,pager A "|iddb raw<return>" "add to iddb"`
+```
+macro index,pager A "|iddb raw<return>" "add to iddb"
+```
 
 ## Contributing
 Submit an issue or send a pull request if you feel inclined to get involved.
