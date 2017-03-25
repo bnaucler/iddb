@@ -18,13 +18,13 @@ int valcard(card *c) {
 	else return 1;
 }
 
-// Change card LID from plid to nlid
+// Change card lid from plid to nlid
 int mvcard(sqlite3 *db, int plid, int nlid) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
 
-	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
+	snprintf(sql, BBCH, "UPDATE id SET lid = %d WHERE lid = %d LIMIT 1;", nlid, plid);
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
 	free(sql);

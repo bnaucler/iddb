@@ -366,7 +366,7 @@ static int mknewphone(card *c, char *prompt, char *buf) {
 		snprintf(prompt, MBCH, "Phone %d", a);
 		if(readline(prompt, buf, "", PHLEN)) break;
 		if(isphone(buf, PHLEN))
-			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH); 
+			esccpy(c->ph[a], formphone(fphone, buf), ESCCHAR, ESCCHAR, MBCH);
 		else return 1;
 	}
 
@@ -385,7 +385,7 @@ static int mknewemail(card *c, char *prompt, char *buf) {
 		snprintf(prompt, MBCH, "Email %d", a);
 		if((rlrc = readline(prompt, buf, c->em[a], EMLEN)) && !c->em[a][0]) break;
 		else if(!rlrc) {
-			if(isemail(buf)) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH); 
+			if(isemail(buf)) esccpy(c->em[a], buf, ESCCHAR, ESCCHAR, MBCH);
 			else return 1;
 		}
 	}
@@ -430,16 +430,21 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 }
 
 // Deletes card #lid from the database
-static int delcard(sqlite3 *db, int clid, int verb) {
+static int delcard(sqlite3 *db, card *c, const flag *f) {
 
-	int last = getindex(db, verb);
+	int last = getindex(db, f->vfl);
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
 
-	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", clid);
-	if(last != clid) { if(mvcard(db, clid, last)) return -1; }
-
+	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", c->lid);
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+
+	if(last != c->lid) { if(mvcard(db, last, c->lid)) return -1; }
+
+	if(f->vfl) {
+		printf("Deleted card:\n");
+		printcard(c, f);
+	}
 
 	free(sql);
 	return dbrc;
@@ -451,8 +456,11 @@ static int iloop(sqlite3 *db, const flag *f, const char *fname) {
 	FILE *vf = fopen(fname, "r");
 	card *c = calloc(1, sizeof(card));
 
+	int dbrc = 0;
+
 	icard(c, vf, db, f->vfl);
-	int dbrc = wrcard(db, c, f->op, f->vfl);
+	if(!valcard(c)) dbrc = wrcard(db, c, f->op, f->vfl);
+	else return 1;
 
 	if(dbrc) return dbrc;
 	else if(f->vfl) printcard(c, f);
@@ -475,7 +483,7 @@ static int import_dir(sqlite3 *db, DIR *vd, const flag *f, char *fpath,
 					fprintf(stderr, "Error reading file %s\n", fpath);
 				} else {
 					ctr++;
-					if(f->vfl) printf("[%d] %s imported successfully\n", ctr, fpath);
+					if(f->vfl) printf("[%d] %s imported\n", ctr, fpath);
 				}
 			}
 		}
@@ -545,8 +553,8 @@ static int rawread(card *c, const flag *f) {
 			int slen = strlen(nbuf);
 			for(a = 0; a < slen; a++) {
 				if(nbuf[a] == '<') b = isn = 0;
-				else if(nbuf[a] == '>') break; 
-				else if(isn) c->fn[b++] = nbuf[a]; 
+				else if(nbuf[a] == '>') break;
+				else if(isn) c->fn[b++] = nbuf[a];
 				else c->em[0][b++] = nbuf[a];
 			}
 
@@ -590,12 +598,12 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 				fprintf(stderr, "Error reading file %s\n", args[a]);
 			} else {
 				ctr++;
-				if(f->vfl) printf("[%d] %s imported successfully\n", ctr, args[a]);
+				if(f->vfl) printf("[%d] %s imported\n", ctr, args[a]);
 			}
 		}
 	}
 
-	if(f->vfl) printf("%d File(s) imported\n", ctr);
+	if(f->vfl) printf("%d File(s) imported successfully\n", ctr);
 
 	free(fpath);
 	return 0;
@@ -650,24 +658,17 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 }
 
 // Execute delete operation
-static int exec_delete(sqlite3 *db, const flag *f, char **args,
-	const int numarg) {
+static int exec_delete(sqlite3 *db, const flag *f, char **args) {
 
 	card *head = calloc(1, sizeof(card));
 	card *ccard = head;
 
 	mkdeck(db, ccard, f, args[0]);
 
-	if(!valcard(ccard)) {
-		delcard(db, head->lid, f->vfl);
-		if(f->vfl) {
-			printf("Deleted card:\n");
-			printcard(ccard, f);
-		}
+	if(!valcard(ccard)) delcard(db, head, f); 
+	else fprintf(stderr, "Found no contact with ID #%d.\n", matoi(args[0]));
 
-	} else {
-		printf("Found no contact with ID #%d.\n", matoi(args[0]));
-	}
+	free(head);
 
 	return 0;
 }
@@ -711,7 +712,7 @@ static int exec_raw(sqlite3 *db, const flag *f) {
 	if(!ret && !valcard(c)) {
 		if((ret = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", ret);
 		else if(f->vfl) printcard(c, f);
-	} 
+	}
 
 	return ret;
 }
@@ -735,7 +736,7 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 		case new:
 			return exec_new(db, f, cmd, args, alen);
 		case delete:
-			return exec_delete(db, f, args, alen);
+			return exec_delete(db, f, args);
 		case raw:
 			return exec_raw(db, f);
 		default:
@@ -825,6 +826,7 @@ int main(int argc, char **argv) {
 	// Set and verify operation
 	f->op = chops(argv[optind], SBCH);
 	if(f->op < 0) errno = EINVAL;
+	if(f->op == delete) f->sfl = lid;
 	if(errno) return usage("", cmd);
 
 	// Prepare argument list

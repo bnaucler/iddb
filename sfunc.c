@@ -36,7 +36,7 @@ int randstr(char *str, const size_t len) {
 	return a;
 }
 
-// Read line from stdin
+// Read line from tty
 int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 
 	char *pstr = calloc(mxl, sizeof(char));
@@ -53,7 +53,6 @@ int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 	buf[(strlen(buf) - 1)] = 0;
 
 	free(pstr);
-
 	fclose(tty);
 
 	if(!buf[0]) return 1;
