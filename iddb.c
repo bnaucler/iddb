@@ -97,7 +97,7 @@ static int getindex(sqlite3 *db, const int verb) {
 static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	const int verb) {
 
-	char *rstr = calloc(EXPLEN + 1, sizeof(char));
+	char *rstr = calloc(EXPLEN, sizeof(char));
 	unsigned int a = 0;
 
 	randstr(rstr, EXPLEN);
@@ -107,7 +107,7 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 
 	int dlen = strlen(fpath);
 	if(fpath[(dlen)] != DDIV) fpath[(dlen)] = DDIV;
-	fpath[(dlen + 1)] = '\0';
+	fpath[(dlen + 1)] = 0;
 
 	strncat(fpath, rstr, MBCH);
 	strncat(fpath, EXPSUF, MBCH);
@@ -128,7 +128,7 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	return fpath;
 }
 
-// Read 
+// Read card object from string to struct
 static int readcardobj(card *c, char *buf, char *sbuf) {
 
 	if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) {
@@ -149,7 +149,6 @@ static int readcardobj(card *c, char *buf, char *sbuf) {
 
 	} else if(!strst(buf, PHKEY)) {
 		strncpy(sbuf, robj(buf), SBCH);
-		memset(buf, 0, PHLEN);
 		if(isphone(sbuf, PHLEN)) {
 			esccpy(c->ph[c->phnum++], formphone(buf, sbuf),
 				ESCCHAR, ESCCHAR, PHLEN);
@@ -173,9 +172,9 @@ static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 
 		if(verc == 2) { 
 			c->lid = getindex(db, verb) + cnum++;
-			verc = 0;
 			c->next = calloc(1, sizeof(card));
 			c = c->next;
+			verc = 0;
 		}
 	}
 
@@ -190,12 +189,11 @@ static int ctable(sqlite3 *db) {
 
 	char *sql = calloc(DBCH, sizeof(char));
 	char *err = 0;
-	int dbrc = 0;
 
 	strncpy(sql, "DROP TABLE IF EXISTS id;"
 		"CREATE TABLE id(lid INT, uid TEXT, fn TEXT,"
 		" org TEXT, ph TEXT, em TEXT);", DBCH);
-	dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
 	free(sql);
 	return dbrc;
@@ -209,7 +207,6 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
 
 	char *err = 0;
-
 	int dbrc = 0;
 
 	while(c->lid) {
@@ -233,11 +230,23 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 	return dbrc;
 }
 
+// Unmarshal array from SQL query
+static int sqlunmarshal(const char *ct, char **tarr, unsigned int *slen) {
+
+	unsigned int a = 0;
+
+	*slen = ct[1];
+	for(a = 0; a < ct[0]; a++) tarr[a] = calloc(ct[1] + 1, sizeof(char));
+	unmarshal(ct, tarr);
+
+	return (int) ct[0];
+}
+
 // Read SQL data into card
 static card *readid(card *c, const char *cn, const char *ct) {
 
-	char *buf = calloc(BBCH, sizeof(char));
-	unsigned int a = 0;
+	char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
+	unsigned int a = 0, slen = 0;
 
 	if(!strcmp("lid", cn)) c->lid = matoi(ct);
 	else if(!strcmp("uid", cn)) strncpy(c->uid, ct, ULEN);
@@ -245,30 +254,15 @@ static card *readid(card *c, const char *cn, const char *ct) {
 	else if(!strcmp("org", cn)) strncpy(c->org, ct, ORLEN);
 
 	else if(!strcmp("ph", cn)) {
-		char **parr = calloc(PHNUM * PHLEN, sizeof(char));
-		strncpy(buf, ct, BBCH);
-		for(a = 0; a < buf[0]; a++)
-			parr[a] = calloc(buf[1] + 1, sizeof(char));
-		unmarshal(buf, parr);
-		c->phnum = buf[0];
-		for(a = 0; a < buf[0]; a++)
-			strncpy(c->ph[a], parr[a], buf[1] + 1);
-		free(parr);
+		c->phnum = sqlunmarshal(ct, tarr, &slen);
+		for(a = 0; a < c->phnum; a++) strncpy(c->ph[a], tarr[a], slen);
+
+	} else if(!strcmp("em", cn)) {
+		c->emnum = sqlunmarshal(ct, tarr, &slen);
+		for(a = 0; a < c->emnum; a++) strncpy(c->em[a], tarr[a], slen);
 	}
 
-	else if(!strcmp("em", cn)) {
-		char **earr = calloc(EMNUM * EMLEN, sizeof(char));
-		strncpy(buf, ct, BBCH);
-		for(a = 0; a < buf[0]; a++)
-			earr[a] = calloc(buf[1] + 1, sizeof(char));
-		unmarshal(buf, earr);
-		c->emnum = buf[0];
-		for(a = 0; a < buf[0]; a++)
-			strncpy(c->em[a], earr[a], buf[1] + 1);
-		free(earr);
-	}
-
-	free(buf);
+	free(tarr);
 	return c;
 }
 

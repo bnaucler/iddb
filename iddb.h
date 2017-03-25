@@ -94,7 +94,7 @@ typedef struct flag {
 
 // Forward declarations - marshal.c
 extern char *marshal(char *mstr, int rows, int cols, char arr[][cols]);
-extern char **unmarshal(char *str, char **arr);
+extern char **unmarshal(const char *str, char **arr);
 
 // Forward declarations - sfunc.c
 extern int strst(const char *str, const char *key);

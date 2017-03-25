@@ -31,7 +31,7 @@ int randstr(char *str, const size_t len) {
 	unsigned int a = 0;
 
 	for(a = 0; a < len; a++) str[a] = charset[(rand() % cslen)];
-	str[len] = '\0';
+	str[len] = 0;
 
 	return a;
 }
@@ -105,7 +105,7 @@ char *atostr(char *str, char **arr, const size_t num) {
 		str[strlen(str)] = ' ';
 		lsz -= (strlen(arr[a]) + 1);
 	}
-	str[(strlen(str) - 1)] = '\0';
+	str[(strlen(str) - 1)] = 0;
 
 	return str;
 }
@@ -232,8 +232,7 @@ char *remchar(char *str, const char ch) {
 	char *src, *dest;
 
 	for (src = dest = str; *src; src++) {
-        if (*src == ch) continue;
-        else *dest++ = *src;
+        if (*src != ch) *dest++ = *src;
     }
 
 	*dest = 0;

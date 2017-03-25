@@ -18,12 +18,12 @@ char *marshal(char *mstr, int rows, int cols, char arr[][cols]) {
 		}
 	}
 
-	mstr[w] = '\0';
+	mstr[w] = 0;
 	return mstr;
 }
 
 // Return marshalled string to array format
-char **unmarshal(char *str, char **arr) {
+char **unmarshal(const char *str, char **arr) {
 
 	char *tmp = calloc(str[1] + 1, sizeof(char));
 	unsigned int a = 0, b = 0, w = 2;
