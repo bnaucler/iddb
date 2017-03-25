@@ -34,16 +34,12 @@ int mvcard(sqlite3 *db, int plid, int nlid) {
 // Return 0 if c1 and c2 are identical
 int cmpcard(const card *c1, const card *c2) {
 
-	unsigned int a = 0;
-
-	if(strncmp(c1->uid, c2->uid, ULEN)) return 1;
-	if(strncmp(c1->fn, c2->fn, NALEN)) return 2;
-	if(strncmp(c1->org, c2->org, ORLEN)) return 2;
-	if(c1->phnum != c2->phnum) return 4;
-	if(c1->emnum != c2->emnum) return 5;
-
-	for(a = 0; a < c1->phnum; a++) { if(c1->ph[a] != c2->ph[a]) return 6; }
-	for(a = 0; a < c1->emnum; a++) { if(c1->em[a] != c2->em[a]) return 7; }
+	if(c1->lid == c2->lid) return 1;
+	if(strncmp(c1->uid, c2->uid, ULEN)) return 2;
+	if(strncmp(c1->fn, c2->fn, NALEN)) return 3;
+	if(strncmp(c1->org, c2->org, ORLEN)) return 4;
+	if(c1->phnum != c2->phnum) return 5;
+	if(c1->emnum != c2->emnum) return 6;
 
 	return 0;
 }

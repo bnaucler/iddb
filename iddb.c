@@ -200,7 +200,7 @@ static int ctable(sqlite3 *db) {
 }
 
 // Write struct to DB
-int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
+static int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
 	char *sql = calloc(BBCH, sizeof(char));
 	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
@@ -227,6 +227,7 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 	free(sql);
 	free(pbuf);
 	free(mbuf);
+
 	return dbrc;
 }
 
@@ -236,7 +237,7 @@ static int sqlunmarshal(const char *ct, char **tarr, unsigned int *slen) {
 	unsigned int a = 0;
 
 	*slen = ct[1];
-	for(a = 0; a < ct[0]; a++) tarr[a] = calloc(ct[1] + 1, sizeof(char));
+	for(a = 0; a < ct[0]; a++) tarr[a] = calloc(*slen + 1, sizeof(char));
 	unmarshal(ct, tarr);
 
 	return (int) ct[0];
@@ -299,15 +300,33 @@ static char *mksqlstr(int svar, char *sql, const char *str) {
 	return sql;
 }
 
+// Check linked list for doubles and advance if none is found
+static card *chkdblcard(card *c, card *head) {
+
+	unsigned int isdbl = 0;
+	card *cmpc = head;
+
+	if(!c->next) c->next = calloc(1, sizeof(card));
+
+	while(cmpc->lid) {
+		if(!cmpcard(cmpc, c)) isdbl++;
+		cmpc = cmpc->next;
+	}
+
+	// TODO: repair advancement for last card
+	if(isdbl < 2 || c == head) c = c->next;
+
+	return c;
+}
+
 // Return entry from database
 static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
 	unsigned int cci) {
 
 	sqlite3_stmt *stmt;
 	card *head = c;
-	card *cmpc = c;
 
-	unsigned int a = 0, isdbl = 0;
+	unsigned int a = 0;
 
 	if (f->vfl > 1) printf("Query: %s\n", sql);
 
@@ -325,20 +344,8 @@ static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
 			cci++;
 		}
 
-		if(!c->next) c->next = calloc(1, sizeof(card));
-		cmpc = head;
-
-		while(cmpc->lid) {
-			if(!cmpcard(cmpc, c)) isdbl++;
-			cmpc = cmpc->next;
-		}
-
-		if(isdbl < 2 || c == head) {
-			c = c->next;
-			if(cci >= f->mxnum) return cci;
-		}
-
-		isdbl = 0;
+		c = chkdblcard(c, head);
+		if(cci >= f->mxnum) return cci;
 	}
 
 	return cci;
