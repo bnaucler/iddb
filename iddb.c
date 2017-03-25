@@ -94,16 +94,15 @@ static int getindex(sqlite3 *db, const int verb) {
 }
 
 // Export card to file
-static char *ecard(card *c, char *fpath, int psz, const char *edir,
-	const int verb) {
+static char *ecard(card *c, const flag *f, char *fpath) {
 
 	char *rstr = calloc(EXPLEN, sizeof(char));
 	unsigned int a = 0;
 
 	randstr(rstr, EXPLEN);
 
-	if(!edir[0]) strncpy(fpath, getenv("PWD"), MBCH);
-	else strncpy(fpath, edir, MBCH);
+	if(!f->dfl[0]) strncpy(fpath, getenv("PWD"), MBCH);
+	else strncpy(fpath, f->dfl, MBCH);
 
 	int dlen = strlen(fpath);
 	if(fpath[(dlen)] != DDIV) fpath[(dlen)] = DDIV;
@@ -112,17 +111,17 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	strncat(fpath, rstr, MBCH);
 	strncat(fpath, EXPSUF, MBCH);
 
-	FILE *f = fopen(fpath, "w");
+	FILE *cf = fopen(fpath, "w");
 
-	fprintf(f, "BEGIN:VCARD\nVERSION:3.0\n");
-	fprintf(f, "FN:%s\n", c->fn);
-	if(c->uid[0]) fprintf(f, "UID:%s\n", c->uid);
-	if(c->org[0]) fprintf(f, "ORG:%s\n", c->org);
-	for(a = 0; a < c->emnum; a++) fprintf(f, "EMAIL;TYPE=INTERNET:%s\n", c->em[a]);
-	for(a = 0; a < c->phnum; a++) fprintf(f, "TEL;TYPE=VOICE:%s\n", c->ph[a]);
-	fprintf(f, "END:VCARD\n");
+	fprintf(cf, "BEGIN:VCARD\nVERSION:3.0\n");
+	fprintf(cf, "FN:%s\n", c->fn);
+	if(c->uid[0]) fprintf(cf, "UID:%s\n", c->uid);
+	if(c->org[0]) fprintf(cf, "ORG:%s\n", c->org);
+	for(a = 0; a < c->emnum; a++) fprintf(cf, "EMAIL;TYPE=INTERNET:%s\n", c->em[a]);
+	for(a = 0; a < c->phnum; a++) fprintf(cf, "TEL;TYPE=VOICE:%s\n", c->ph[a]);
+	fprintf(cf, "END:VCARD\n");
 
-	fclose(f);
+	fclose(cf);
 	free(rstr);
 
 	return fpath;
@@ -313,7 +312,6 @@ static card *chkdblcard(card *c, card *head) {
 		cmpc = cmpc->next;
 	}
 
-	// TODO: repair advancement for last card
 	if(isdbl < 2 || c == head) c = c->next;
 
 	return c;
@@ -360,6 +358,7 @@ static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 	if(!str) {
 		cci = searchdb(db, c, f, "SELECT * FROM id;", cci);
 
+	// TODO: repair handling of duplicates over multiple searches
 	} else if (f->sfl < 0) {
 		for(a = 0; a < 6; a++) {
 			if(cci >= f->mxnum) return cci;
@@ -633,22 +632,25 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 	const int numarg) {
 
 	char *sstr = calloc(BBCH, sizeof(char));
+	char *tstr = calloc(BBCH, sizeof(char));
 	char *fpath = calloc(MBCH, sizeof(char));
+
 	card *head = calloc(1, sizeof(card));
-	card *ccard = head;
+	card *c = head;
 
-	strncpy(sstr, atostr(sstr, args, numarg), BBCH);
-	mkdeck(db, ccard, f, sstr);
+	strncpy(sstr, atostr(tstr, args, numarg), BBCH);
+	mkdeck(db, c, f, sstr);
 
-	ccard = head;
+	c = head;
 
-	while(ccard->lid) {
-		ecard(ccard, fpath, MBCH, f->dfl, f->vfl);
-		if(f->vfl) printf("%s exported as: %s\n", ccard->fn, fpath);
-		ccard = ccard->next;
+	while(c->lid) {
+		ecard(c, f, fpath);
+		if(f->vfl) printf("%s exported as: %s\n", c->fn, fpath);
+		if(c->next) c = c->next;
 	}
 
 	free(sstr);
+	free(tstr);
 	free(fpath);
 	return 0;
 }
@@ -722,10 +724,9 @@ static int exec_raw(sqlite3 *db, const flag *f) {
 	card *c = calloc(1, sizeof(card));
 
 	int ret = rawread(c, f);
-
-	if(c->fn[0]) remtchar(c->fn, ' ');
 	orgfromemail(c);
 
+	if(c->fn[0]) remtchar(c->fn, ' ');
 	if(!ret) ret = mknew(db, c, f->vfl);
 
 	if(!ret && !valcard(c)) {
@@ -778,14 +779,13 @@ int main(int argc, char **argv) {
 	char *dbpath = calloc(MBCH, sizeof(char));
 
 	flag *f = calloc(1, sizeof(flag));
-	iflag(f);
 
 	sqlite3 *db;
 
-	int ret = 0;
-	int optc;
+	int ret = 0, optc;
 
 	setsrand();
+	iflag(f);
 
 	strncpy(cmd, basename(argv[0]), MBCH);
 
