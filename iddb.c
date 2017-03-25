@@ -128,13 +128,15 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	return fpath;
 }
 
-// Import card to struct TODO: Support for files with multiple cards
-static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
+// Import card to struct
+static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
 	char *sbuf = malloc(SBCH);
 	char *fphone = malloc(PHLEN);
-	int verc = 0;
+	int verc = 0, cnum = 1;
+
+	card *c = head;
 
 	c->phnum = 0;
 	c->emnum = 0;
@@ -164,14 +166,21 @@ static card *icard(card *c, FILE *f, sqlite3 *db, const int verb) {
 					ESCCHAR, ESCCHAR, PHLEN);
 			}
 		}
+
+		if(verc == 2) { 
+			c->lid = getindex(db, verb) + cnum++;
+			verc = 0;
+			c->next = calloc(1, sizeof(card));
+			c = c->next;
+		}
 	}
 
-	if(verc == 2) c->lid = getindex(db, verb) + 1;
 
 	free(buf);
 	free(sbuf);
 	free(fphone);
-	return c;
+
+	return head;
 }
 
 // Create (or reset) database table
@@ -199,15 +208,22 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
 	char *err = 0;
 
-	snprintf(sql, BBCH, "INSERT INTO id VALUES"
-			"(%d, '%s', '%s', '%s',  '%s', '%s');",
-			c->lid, c->uid, c->fn, c->org,
-			marshal(pbuf, c->phnum, PHLEN, c->ph),
-			marshal(mbuf, c->emnum, EMLEN, c->em));
+	int dbrc = 0;
 
-	if(verb > 1) printf("Query: %s\n", sql);
+	while(c->lid) {
+		snprintf(sql, BBCH, "INSERT INTO id VALUES"
+				"(%d, '%s', '%s', '%s',  '%s', '%s');",
+				c->lid, c->uid, c->fn, c->org,
+				marshal(pbuf, c->phnum, PHLEN, c->ph),
+				marshal(mbuf, c->emnum, EMLEN, c->em));
 
-	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+		if(verb > 1) printf("Query: %s\n", sql);
+
+		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+
+		if(c->next) c = c->next;
+		else break;
+	}
 
 	free(sql);
 	free(pbuf);
