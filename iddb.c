@@ -128,44 +128,48 @@ static char *ecard(card *c, char *fpath, int psz, const char *edir,
 	return fpath;
 }
 
+// Read 
+static int readcardobj(card *c, char *buf, char *sbuf) {
+
+	if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) {
+		return 1;
+
+	} else if(!strst(buf, UIDKEY)) {
+		esccpy(c->uid, robj(buf), ESCCHAR, ESCCHAR, ULEN);
+
+	} else if(!strst(buf, FNKEY)) {
+		esccpy(c->fn, robj(buf), ESCCHAR, ESCCHAR, NALEN);
+
+	} else if(!strst(buf, ORGKEY)) {
+		esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
+
+	} else if(!strst(buf, EMKEY)) {
+		if(isemail(buf))
+			esccpy(c->em[c->emnum++], robj(buf), ESCCHAR, ESCCHAR, EMLEN);
+
+	} else if(!strst(buf, PHKEY)) {
+		strncpy(sbuf, robj(buf), SBCH);
+		memset(buf, 0, PHLEN);
+		if(isphone(sbuf, PHLEN)) {
+			esccpy(c->ph[c->phnum++], formphone(buf, sbuf),
+				ESCCHAR, ESCCHAR, PHLEN);
+		}
+	}
+
+	return 0;
+}
+
 // Import card to struct
 static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 
 	char *buf = malloc(MBCH);
 	char *sbuf = malloc(SBCH);
-	char *fphone = malloc(PHLEN);
 	int verc = 0, cnum = 1;
 
 	card *c = head;
 
-	c->phnum = 0;
-	c->emnum = 0;
-
 	while(fgets(buf, MBCH, f)){
-
-		if(!strst(buf, STARTKEY) || !strst(buf, STOPKEY)) {
-			verc++;
-
-		} else if(!strst(buf, UIDKEY)) {
-			esccpy(c->uid, robj(buf), ESCCHAR, ESCCHAR, ULEN);
-
-		} else if(!strst(buf, FNKEY)) {
-			esccpy(c->fn, robj(buf), ESCCHAR, ESCCHAR, NALEN);
-
-		} else if(!strst(buf, ORGKEY)) {
-			esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
-
-		} else if(!strst(buf, EMKEY)) {
-			if(isemail(buf))
-				esccpy(c->em[c->emnum++], robj(buf), ESCCHAR, ESCCHAR, EMLEN);
-
-		} else if(!strst(buf, PHKEY)) {
-			strncpy(sbuf, robj(buf), SBCH);
-			if(isphone(sbuf, PHLEN)) {
-				esccpy(c->ph[c->phnum++], formphone(fphone, sbuf),
-					ESCCHAR, ESCCHAR, PHLEN);
-			}
-		}
+		verc += readcardobj(c, buf, sbuf);
 
 		if(verc == 2) { 
 			c->lid = getindex(db, verb) + cnum++;
@@ -175,10 +179,8 @@ static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 		}
 	}
 
-
 	free(buf);
 	free(sbuf);
-	free(fphone);
 
 	return head;
 }

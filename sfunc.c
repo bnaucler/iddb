@@ -216,7 +216,7 @@ char *formphone(char *dest, const char *src) {
 		else dest[(a - b)] = src[a];
 	}
 
-	dest[(++a - b)] = '\0';
+	dest[(a - b)] = 0;
 
 	if(dest[0] == '0' && dest[1] == '0') {
 		dest++;
