@@ -93,13 +93,29 @@ static int getindex(sqlite3 *db, const int verb) {
 	return ret;
 }
 
+// Create file name based on c->fn
+static int *mkfname(card *c, char *str, int mxlen) {
+
+	int a = 0;
+
+	while(c->fn[a] && a < mxlen - 1) {
+		if(isspace(c->fn[a])) str[a] = '_';
+		else str[a] = tolower(c->fn[a]);
+		a++;
+	}
+
+	str[++a] = 0;
+
+	return 0;
+}
+
 // Export card to file
 static char *ecard(card *c, const flag *f, char *fpath) {
 
-	char *rstr = calloc(EXPLEN, sizeof(char));
+	char *fn = calloc(EXPLEN, sizeof(char));
 	unsigned int a = 0;
 
-	randstr(rstr, EXPLEN);
+	mkfname(c, fn, EXPLEN);
 
 	if(!f->dfl[0]) strncpy(fpath, getenv("PWD"), MBCH);
 	else strncpy(fpath, f->dfl, MBCH);
@@ -108,7 +124,7 @@ static char *ecard(card *c, const flag *f, char *fpath) {
 	if(fpath[(dlen)] != DDIV) fpath[(dlen)] = DDIV;
 	fpath[(dlen + 1)] = 0;
 
-	strncat(fpath, rstr, MBCH);
+	strncat(fpath, fn, MBCH);
 	strncat(fpath, EXPSUF, MBCH);
 
 	FILE *cf = fopen(fpath, "w");
@@ -122,7 +138,7 @@ static char *ecard(card *c, const flag *f, char *fpath) {
 	fprintf(cf, "END:VCARD\n");
 
 	fclose(cf);
-	free(rstr);
+	free(fn);
 
 	return fpath;
 }
@@ -169,7 +185,7 @@ static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 	while(fgets(buf, MBCH, f)){
 		verc += readcardobj(c, buf, sbuf);
 
-		if(verc == 2) { 
+		if(verc == 2) {
 			c->lid = getindex(db, verb) + cnum++;
 			c->next = calloc(1, sizeof(card));
 			c = c->next;
@@ -305,8 +321,6 @@ static card *chkdblcard(card *c, card *head) {
 	unsigned int isdbl = 0;
 	card *cmpc = head;
 
-	if(!c->next) c->next = calloc(1, sizeof(card));
-
 	while(cmpc->lid) {
 		if(!cmpcard(cmpc, c)) isdbl++;
 		cmpc = cmpc->next;
@@ -334,6 +348,7 @@ static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
 
 	while((dbrc = sqlite3_step(stmt)) != SQLITE_DONE) {
 		if(dbrc == SQLITE_ROW) {
+			if(!c->next) c->next = calloc(1, sizeof(card));
 			int ccnt = sqlite3_column_count(stmt);
 			for(a = 0; a < ccnt; a++){
 				readid(c, sqlite3_column_name(stmt, a),
@@ -421,8 +436,10 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 
 	unsigned int rlrc = 0;
 
-	if((rlrc = readline("Full name", buf, c->fn, NALEN)) && !c->fn[0]) return 1;
-	else if(!rlrc) esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
+	if((rlrc = readline("Full name", buf, c->fn, NALEN)) && !c->fn[0])
+		return rlrc;
+	else if(!rlrc)
+		esccpy(c->fn, buf, ESCCHAR, ESCCHAR, MBCH);
 
 	if(randstr(buf, UCLEN)) strcpy(c->uid, buf);
 
@@ -431,14 +448,14 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	if(!readline("Organization", buf, c->org, ORLEN))
 		esccpy(c->org, buf, ESCCHAR, ESCCHAR, MBCH);
 
-	if(mknewphone(c, prompt, buf)) {
+	if((rlrc = mknewphone(c, prompt, buf))) {
 		fprintf(stderr, "Error: Incorrect phone number format\n");
-		return 1;
+		return rlrc;
 	}
 
-	if(mknewemail(c, prompt, buf)) {
+	if((rlrc = mknewemail(c, prompt, buf))) {
 		fprintf(stderr, "Error: Incorrect email address format\n");
-		return 1;
+		return rlrc;
 	}
 
 	free(buf);
@@ -686,7 +703,7 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args) {
 
 	mkdeck(db, ccard, f, args[0]);
 
-	if(!valcard(ccard)) delcard(db, head, f); 
+	if(!valcard(ccard)) delcard(db, head, f);
 	else fprintf(stderr, "Found no contact with ID #%d.\n", matoi(args[0]));
 
 	free(head);
