@@ -45,7 +45,7 @@
 #define MBCH 128
 #define SBCH 32
 
-#define EXPLEN 20
+#define EXPLEN 30
 #define EXPSUF ".vcf"
 
 #define STARTKEY "BEGIN:VCARD"

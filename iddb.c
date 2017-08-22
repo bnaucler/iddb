@@ -94,38 +94,57 @@ static int getindex(sqlite3 *db, const int verb) {
 }
 
 // Create file name based on c->fn
-static int *mkfname(card *c, char *str, int mxlen) {
+static int mkfname(const card *c, char *str, const int i, int mxlen) {
 
 	int a = 0;
+	char isuf[4];
 
-	while(c->fn[a] && a < mxlen - 1) {
+	if(str[0]) memset(str, 0, mxlen);
+
+	if(i > 99) exit(2); // TODO: Graceful exit for edge cases
+	else if(i) mxlen -= 4;
+
+	while(c->fn[a] && a < mxlen) {
 		if(isspace(c->fn[a])) str[a] = '_';
 		else str[a] = tolower(c->fn[a]);
 		a++;
 	}
 
-	str[++a] = 0;
+	if(i) {
+		snprintf(isuf, 4, "_%02d", i);
+		strncat(str, isuf, mxlen + 4);
+	} else str[++a] = 0;
 
-	return 0;
+	return a;
+}
+
+// Concat full file path
+static int catfpath(char *path, const char *fn, const char *suf,
+	const int mxsz, const flag *f) {
+
+	if(!f->dfl[0]) strncpy(path, getenv("PWD"), MBCH);
+	else strncpy(path, f->dfl, MBCH);
+
+	int dlen = strlen(path);
+
+	if(path[(dlen)] != DDIV) path[(dlen)] = DDIV;
+	path[(dlen + 1)] = 0;
+
+	strncat(path, fn, mxsz);
+	strncat(path, suf, mxsz);
+
+	return access(path, W_OK);
 }
 
 // Export card to file
 static char *ecard(card *c, const flag *f, char *fpath) {
 
 	char *fn = calloc(EXPLEN, sizeof(char));
-	unsigned int a = 0;
 
-	mkfname(c, fn, EXPLEN);
+	unsigned int a = 0, i = 0;
 
-	if(!f->dfl[0]) strncpy(fpath, getenv("PWD"), MBCH);
-	else strncpy(fpath, f->dfl, MBCH);
-
-	int dlen = strlen(fpath);
-	if(fpath[(dlen)] != DDIV) fpath[(dlen)] = DDIV;
-	fpath[(dlen + 1)] = 0;
-
-	strncat(fpath, fn, MBCH);
-	strncat(fpath, EXPSUF, MBCH);
+	do mkfname(c, fn, i++, EXPLEN);
+	while(!catfpath(fpath, fn, EXPSUF, MBCH, f));
 
 	FILE *cf = fopen(fpath, "w");
 
