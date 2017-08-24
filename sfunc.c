@@ -39,13 +39,13 @@ int randstr(char *str, const size_t len) {
 // Read line from tty
 int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 
-	char *pstr = calloc(mxl, sizeof(char));
+	char *pstr = calloc(MBCH, sizeof(char));
 
 	FILE *tty = fopen("/dev/tty", "r");
-	memset(buf, 0, mxl);
+	if(buf[0]) memset(buf, 0, mxl);
 
-	if(def[0]) snprintf(pstr, mxl, "%s (Default: %s)", prompt, def);
-	else strncpy(pstr, prompt, mxl);
+	if(def[0]) snprintf(pstr, MBCH, "%s (Default: %s)", prompt, def);
+	else strncpy(pstr, prompt, MBCH);
 
 	if(pstr[0]) printf("%s: ", pstr);
 	fgets(buf, mxl, tty);

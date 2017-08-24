@@ -16,18 +16,19 @@
 #include <string.h>
 #include <sqlite3.h>
 
-int usage(const char *err, const char *cmd) {
+int usage(const char *err, const flag *f) {
 
 	if(err[0]) fprintf(stderr, "Error: %s\n", err);
 	if(errno) fprintf(stderr, "Error: %s\n", strerror(errno));
 
-	printf("%s %s\n", cmd, VER);
-	printf("Usage: %s [options] [operation] [args]\n\n", cmd);
+	printf("%s %s\n", f->cmd, VER);
+	printf("Usage: %s [options] [operation] [args]\n\n", f->cmd);
 	printf("Operations:\n"
 			"    h[elp]    Display this text\n"
 			"    c[reate]  Create or reset database\n"
 			"    a[ll]     Search and display all contact information\n"
 			"    i[mport]  Import VCF from file(s) or dir(s)\n"
+			"    j[oin]    Interactively merge two cards based on ID\n"
 			"    e[xport]  Search and export output to VCF\n"
 			"    p[hone]   Search and display phone numbers\n"
 			"    r[aw]     Interactively add user from raw email dump\n"
@@ -46,10 +47,15 @@ int usage(const char *err, const char *cmd) {
 }
 
 // Check for valid operation
+// TODO: Make non-hacky
 static int chops(const char *cop, size_t mxl) {
 
-	char vops[10][7] = {"create", "delete", "import", "export", "help",
-		"phone", "raw", "mail", "new", "all"};
+	char vops[11][7] = {
+        "create", "delete", "import",
+        "join", "export", "help",
+        "phone", "raw", "mail",
+        "new", "all"
+    };
 
 	int clen = strlen(cop);
 	if(clen > mxl) return -1;
@@ -97,12 +103,12 @@ static int getindex(sqlite3 *db, const int verb) {
 static int mkfname(const card *c, char *str, const int i, int mxlen) {
 
 	int a = 0;
-	char isuf[4];
+	char isuf[5];
 
 	if(str[0]) memset(str, 0, mxlen);
 
 	if(i > 99) exit(2); // TODO: Graceful exit for edge cases
-	else if(i) mxlen -= 4;
+	else if(i) mxlen -= 5;
 
 	while(c->fn[a] && a < mxlen) {
 		if(isspace(c->fn[a])) str[a] = '_';
@@ -111,7 +117,7 @@ static int mkfname(const card *c, char *str, const int i, int mxlen) {
 	}
 
 	if(i) {
-		snprintf(isuf, 4, "_%02d", i);
+		snprintf(isuf, 5, "_%02d", i);
 		strncat(str, isuf, mxlen + 4);
 	} else str[++a] = 0;
 
@@ -230,38 +236,6 @@ static int ctable(sqlite3 *db) {
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
 	free(sql);
-	return dbrc;
-}
-
-// Write struct to DB
-static int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
-
-	char *sql = calloc(BBCH, sizeof(char));
-	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
-	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
-
-	char *err = 0;
-	int dbrc = 0;
-
-	while(c->lid) {
-		snprintf(sql, BBCH, "INSERT INTO id VALUES"
-				"(%d, '%s', '%s', '%s',  '%s', '%s');",
-				c->lid, c->uid, c->fn, c->org,
-				marshal(pbuf, c->phnum, PHLEN, c->ph),
-				marshal(mbuf, c->emnum, EMLEN, c->em));
-
-		if(verb > 1) printf("Query: %s\n", sql);
-
-		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
-
-		if(c->next) c = c->next;
-		else break;
-	}
-
-	free(sql);
-	free(pbuf);
-	free(mbuf);
-
 	return dbrc;
 }
 
@@ -621,17 +595,54 @@ static int rawread(card *c, const flag *f) {
 	return 0;
 }
 
-// Execute create operation
-static int exec_create(sqlite3 *db, const char *cmd, const char *dbpath) {
+// Interactively select string
+static int selstr(const char *s1, const char *s2) {
 
-	if(ctable(db)) return usage("Could not create/reset database", cmd);
+	char ans[3];
+
+	printf("1: %s\n", s1);
+	printf("2: %s\n", s2);
+
+	if(readline("Keep (1/2)", ans, "1", 3)) return 1; 
+	else return matoi(ans);
+}
+
+// Loop wrapper for selstr
+static void selwr(char *s1, const char *s2, size_t mxl) {
+
+	int rc = 0;
+
+	do rc = selstr(s1, s2);
+	while (rc != 1 && rc != 2);
+
+	if(rc == 2) strncpy(s1, s2, mxl);
+}
+
+// Merge c2 into c1, keeping lid of c1
+// TODO: Continue here
+static int joincard(card *c1, const card *c2) {
+
+	// int a = 0;
+
+	selwr(c1->fn, c2->fn, NALEN);
+	selwr(c1->org, c2->org, ORLEN);
+
+	if(!c1->uid[0] && c2->uid[0]) strncpy(c1->uid, c2->uid, ULEN);
+
+	return 0;
+}
+
+// Execute create operation
+static int exec_create(sqlite3 *db, const flag *f, const char *dbpath) {
+
+	if(ctable(db)) return usage("Could not create/reset database", f);
 	else printf("Database %s created successfully\n", dbpath);
 
 	return 0;
 }
 
 // Execute import operation
-static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
+static int exec_import(sqlite3 *db, const flag *f, char **args, 
 	const int numf) {
 
 	unsigned int a = 0, ctr = 0;
@@ -663,6 +674,41 @@ static int exec_import(sqlite3 *db, const flag *f, char **args, const char *cmd,
 	return 0;
 }
 
+// Execute join operation
+// TODO: refactor and clean up
+static int exec_join(sqlite3 *db, const flag *f, char **args,
+    const int numarg) {
+
+    int last = getindex(db, f->vfl);
+	char *sql = calloc(BBCH, sizeof(char));
+
+    card *c1 = calloc(1, sizeof(card));
+    card *c2 = calloc(1, sizeof(card));
+
+    if(numarg == 2) {
+        c1->lid = matoi(args[0]);
+        c2->lid = matoi(args[1]);
+    } 
+
+    if(numarg != 2 || c1->lid == c2->lid ||
+        c1->lid > last || c1->lid < 1 ||
+        c2->lid > last || c2->lid < 1) {
+        return usage("Specify two LID to join cards", f);
+
+    } else {
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c1->lid);
+		searchdb(db, c1, f, sql, 0);
+		snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c2->lid);
+		searchdb(db, c2, f, sql, 0);
+
+        joincard(c1, c2);
+        delcard(db, c1, f);
+        delcard(db, c2, f);
+        wrcard(db, c1, f->op, f->vfl);
+        return 0;
+    }
+}
+
 // Execute export operation
 static int exec_export(sqlite3 *db, const flag *f, char **args,
 	const int numarg) {
@@ -692,8 +738,7 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
 }
 
 // Execute 'new' operation
-static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
-	char **args, const int anum) {
+static int exec_new(sqlite3 *db, const flag *f, char **args, const int anum) {
 
 	int dbrc = 0;
 
@@ -707,7 +752,7 @@ static int exec_new(sqlite3 *db, const flag *f, const char *cmd,
 		else if(f->vfl) printcard(c, f);
 
 	} else {
-		return usage("Invalid contact format", cmd);
+		return usage("Invalid contact format", f);
 	}
 
 	free(c);
@@ -728,6 +773,27 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args) {
 	free(head);
 
 	return 0;
+}
+
+// Execute 'raw' operation TODO: better handling of return values
+static int exec_raw(sqlite3 *db, const flag *f) {
+
+	card *c = calloc(1, sizeof(card));
+
+	int ret = rawread(c, f);
+	orgfromemail(c);
+
+	if(c->fn[0]) remtchar(c->fn, ' ');
+	if(!ret) ret = mknew(db, c, f->vfl);
+
+	if(!ret && !valcard(c)) {
+		if((ret = wrcard(db, c, f->op, f->vfl)))
+            printf("SQL Error #: %d\n", ret);
+		else if(f->vfl)
+            printcard(c, f);
+	}
+
+	return ret;
 }
 
 // Execute search operations (all, phone & mail)
@@ -754,43 +820,26 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
 	return 0;
 }
 
-// Execute 'raw' operation TODO: better handling of return values
-static int exec_raw(sqlite3 *db, const flag *f) {
-
-	card *c = calloc(1, sizeof(card));
-
-	int ret = rawread(c, f);
-	orgfromemail(c);
-
-	if(c->fn[0]) remtchar(c->fn, ' ');
-	if(!ret) ret = mknew(db, c, f->vfl);
-
-	if(!ret && !valcard(c)) {
-		if((ret = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", ret);
-		else if(f->vfl) printcard(c, f);
-	}
-
-	return ret;
-}
-
 // Execute operations
-static int execute(sqlite3 *db, const flag *f,  const char *cmd,
-	const char *dbpath, const int alen, char **args) {
+static int execute(sqlite3 *db, const flag *f, const char *dbpath,
+    const int alen, char **args) {
 
 	errno = 0;
 
 	switch(f->op) {
 
 		case help:
-			return usage("", cmd);
+			return usage("", f);
 		case create:
-			return exec_create(db, cmd, dbpath);
+			return exec_create(db, f, dbpath);
 		case import:
-			return exec_import(db, f, args, cmd, alen);
+			return exec_import(db, f, args, alen);
+		case join:
+			return exec_join(db, f, args, alen);
 		case export:
 			return exec_export(db, f, args, alen);
 		case new:
-			return exec_new(db, f, cmd, args, alen);
+			return exec_new(db, f, args, alen);
 		case delete:
 			return exec_delete(db, f, args);
 		case raw:
@@ -801,7 +850,9 @@ static int execute(sqlite3 *db, const flag *f,  const char *cmd,
 }
 
 // Set all flags to default values
-static void iflag(flag *f) {
+static void iflag(flag *f, const char *cmd) {
+
+	strncpy(f->cmd, cmd, CMDLEN);
 
 	f->op = -1;
 	f->mxnum = NUMCARD;
@@ -811,7 +862,6 @@ static void iflag(flag *f) {
 
 int main(int argc, char **argv) {
 
-	char *cmd = calloc(MBCH, sizeof(char));
 	char *dbpath = calloc(MBCH, sizeof(char));
 
 	flag *f = calloc(1, sizeof(flag));
@@ -821,9 +871,7 @@ int main(int argc, char **argv) {
 	int ret = 0, optc;
 
 	setsrand();
-	iflag(f);
-
-	strncpy(cmd, basename(argv[0]), MBCH);
+	iflag(f, basename(argv[0]));
 
 	while((optc = getopt(argc, argv, "d:f:hn:v")) != -1) {
 		switch(optc) {
@@ -837,14 +885,14 @@ int main(int argc, char **argv) {
 				break;
 
 			case 'h':
-				return usage("", cmd);
+				return usage("", f);
 				break;
 
 			case 'n':
 				f->mxnum = matoi(optarg);
 				if(f->mxnum > NUMCARD) f->mxnum = NUMCARD;
 				else if(f->mxnum < 1)
-					return usage("n cannot be zero or negative", cmd);
+					return usage("n cannot be zero or negative", f);
 				break;
 
 			case 'v':
@@ -852,7 +900,7 @@ int main(int argc, char **argv) {
 				break;
 
 			default:
-				return usage("", cmd);
+				return usage("", f);
 				break;
 		}
 	}
@@ -863,8 +911,8 @@ int main(int argc, char **argv) {
 	if(sqlite3_open(dbpath, &db)) errno = ENOENT;
 	else errno = 0;
 
-	// Dump DB if no argument has been given
-	if(argc <= optind && !errno) {
+	// Dump DB if no argument has bee
+ 	if(argc <= optind && !errno) {
 		f->op = all;
 		ret = exec_search(db, f, NULL, 0);
 
@@ -873,7 +921,7 @@ int main(int argc, char **argv) {
 
 	// Create database if it doesn't exist
 	} else if(errno) {
-		exec_create(db, cmd, dbpath);
+		exec_create(db, f, dbpath);
 		errno = 0;
 		if(argc <= optind) return 0;
 	}
@@ -882,17 +930,20 @@ int main(int argc, char **argv) {
 	f->op = chops(argv[optind], SBCH);
 	if(f->op < 0) errno = EINVAL;
 	if(f->op == delete) f->sfl = lid;
-	if(errno) return usage("", cmd);
+	if(f->op == join) {
+        f->sfl = lid;
+    }
+
+	if(errno) return usage("", f);
 
 	// Prepare argument list
 	argc -= optind + 1;
 	argv += optind + 1;
 
 	// Initiate operations
-	ret = execute(db, f, cmd, dbpath, argc, argv);
+	ret = execute(db, f, dbpath, argc, argv);
 
 	// Graceful exit
-	free(cmd);
 	free(dbpath);
 	free(f);
 	sqlite3_close(db);

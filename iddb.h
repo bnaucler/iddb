@@ -28,6 +28,8 @@
 #define VER "0.4A"
 #define DBNAME ".iddb.sl3"
 
+#define CMDLEN 30
+
 #define NALEN 128
 #define ORLEN 128
 #define ULEN 64
@@ -66,7 +68,7 @@
 #define DDIV '/'
 
 // Type definitions and enumerations
-typedef enum op {create, delete, import, export, help, phone, raw, mail, new, all} op;
+typedef enum op {create, delete, import, join, export, help, phone, raw, mail, new, all} op;
 typedef enum svar {lid, uid, fn, org, em, ph} svar;
 
 typedef struct card {
@@ -86,6 +88,7 @@ typedef struct flag {
 	int mxnum;
 	int vfl;
 	int sfl;
+    char cmd[CMDLEN];
 	char dfl[MBCH];
 	char nfl[NALEN];
 	char pfl[PHLEN];
@@ -119,5 +122,6 @@ extern int valcard(card *c);
 extern int mvcard(sqlite3 *db, int plid, int nlid);
 extern int cmpcard(const card *c1, const card *c2);
 extern int printcard(card *c, const flag *f);
+extern int wrcard(sqlite3 *db, card *c, const int op, const int verb);
 
 #endif

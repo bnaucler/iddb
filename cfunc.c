@@ -82,3 +82,34 @@ int printcard(card *c, const flag *f) {
 	return 0;
 }
 
+// Write struct to DB
+int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
+
+	char *sql = calloc(BBCH, sizeof(char));
+	char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
+	char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
+
+	char *err = 0;
+	int dbrc = 0;
+
+	while(c->lid) {
+		snprintf(sql, BBCH, "INSERT INTO id VALUES"
+				"(%d, '%s', '%s', '%s',  '%s', '%s');",
+				c->lid, c->uid, c->fn, c->org,
+				marshal(pbuf, c->phnum, PHLEN, c->ph),
+				marshal(mbuf, c->emnum, EMLEN, c->em));
+
+		if(verb > 1) printf("Query: %s\n", sql);
+
+		dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+
+		if(c->next) c = c->next;
+		else break;
+	}
+
+	free(sql);
+	free(pbuf);
+	free(mbuf);
+
+	return dbrc;
+}
