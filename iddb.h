@@ -116,6 +116,8 @@ extern int isphone(const char *str, const int mxl);
 extern char *formphone(char *output, const char *input);
 extern char *remchar(char *str, const char ch);
 extern char *remtchar(char *str, const char ch);
+extern int inarr(const char *str, const size_t mxl,
+    char arr[][mxl], const size_t asz);
 
 // Forward declarations - cfunc.c
 extern int valcard(card *c);

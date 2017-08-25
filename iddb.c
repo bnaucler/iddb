@@ -463,17 +463,16 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 	return 0;
 }
 
-// Deletes card #lid from the database
+// Deletes card c from the database
 static int delcard(sqlite3 *db, card *c, const flag *f) {
 
 	int last = getindex(db, f->vfl);
-	char *sql = calloc(BBCH, sizeof(char));
-	char *err = 0;
+	char *sql = calloc(BBCH, sizeof(char)), *err = 0;
 
 	snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", c->lid);
 	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
-	if(last != c->lid) { if(mvcard(db, last, c->lid)) return -1; }
+	if(c->lid != last) mvcard(db, last, c->lid);
 
 	if(f->vfl) {
 		printf("Deleted card:\n");
@@ -609,7 +608,7 @@ static int selstr(const char *s1, const char *s2) {
 	printf("1: %s\n", s1);
 	printf("2: %s\n", s2);
 
-	if(readline("Keep (1/2)", ans, "1", 3)) return 1; 
+	if(readline("Keep (1/2)", ans, "1", 3)) return 1;
 	else return matoi(ans);
 }
 
@@ -617,6 +616,8 @@ static int selstr(const char *s1, const char *s2) {
 static void selwr(char *s1, const char *s2, size_t mxl) {
 
 	int rc = 0;
+
+    if(!strncmp(s1, s2, mxl)) return;
 
 	do rc = selstr(s1, s2);
 	while (rc != 1 && rc != 2);
@@ -628,12 +629,22 @@ static void selwr(char *s1, const char *s2, size_t mxl) {
 // TODO: Continue here
 static int joincard(card *c1, const card *c2) {
 
-	// int a = 0;
+	int a = 0;
 
 	selwr(c1->fn, c2->fn, NALEN);
 	selwr(c1->org, c2->org, ORLEN);
 
 	if(!c1->uid[0] && c2->uid[0]) strncpy(c1->uid, c2->uid, ULEN);
+
+    for(a = 0; a < c2->emnum; a++) {
+        if(inarr(c2->em[a], EMLEN, c1->em, c1->emnum))
+            strncpy(c1->em[c1->emnum++], c2->em[a], EMLEN);
+    }
+
+    for(a = 0; a < c2->phnum; a++) {
+        if(inarr(c2->ph[a], PHLEN, c1->ph, c1->phnum))
+            strncpy(c1->ph[c1->phnum++], c2->ph[a], PHLEN);
+    }
 
 	return 0;
 }
@@ -648,7 +659,7 @@ static int exec_create(sqlite3 *db, const flag *f, const char *dbpath) {
 }
 
 // Execute import operation
-static int exec_import(sqlite3 *db, const flag *f, char **args, 
+static int exec_import(sqlite3 *db, const flag *f, char **args,
 	const int numf) {
 
 	unsigned int a = 0, ctr = 0;
@@ -694,7 +705,7 @@ static int exec_join(sqlite3 *db, const flag *f, char **args,
     if(numarg == 2) {
         c1->lid = matoi(args[0]);
         c2->lid = matoi(args[1]);
-    } 
+    }
 
     if(numarg != 2 || c1->lid == c2->lid ||
         c1->lid > last || c1->lid < 1 ||
@@ -836,20 +847,28 @@ static int execute(sqlite3 *db, const flag *f, const char *dbpath,
 
 		case help:
 			return usage("", f);
+
 		case create:
 			return exec_create(db, f, dbpath);
+
 		case import:
 			return exec_import(db, f, args, alen);
+
 		case join:
 			return exec_join(db, f, args, alen);
+
 		case export:
 			return exec_export(db, f, args, alen);
+
 		case new:
 			return exec_new(db, f, args, alen);
+
 		case delete:
 			return exec_delete(db, f, args);
+
 		case raw:
 			return exec_raw(db, f);
+
 		default:
 			return exec_search(db, f, args, alen);
 	}

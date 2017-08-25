@@ -24,8 +24,8 @@ int mvcard(sqlite3 *db, int plid, int nlid) {
 	char *sql = calloc(BBCH, sizeof(char));
 	char *err = 0;
 
-	snprintf(sql, BBCH, "UPDATE id SET lid = %d WHERE lid = %d LIMIT 1;", nlid, plid);
-	int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+	snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
+	int dbrc = sqlite3_exec(db, sql, NULL, NULL, &err);
 
 	free(sql);
 	return dbrc;
