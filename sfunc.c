@@ -263,3 +263,16 @@ char *remtchar(char *str, const char ch) {
 
 	return str;
 }
+
+// Check if string exists in array
+int inarr(const char *str, const size_t mxl,
+    char arr[][mxl], const size_t asz) {
+
+    unsigned int a = 0;
+
+    for(a = 0; a < asz; a++) {
+        if(!strncmp(str, arr[a], mxl)) return 0;
+    }
+
+    return 1;
+}
