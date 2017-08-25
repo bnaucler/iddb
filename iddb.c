@@ -626,7 +626,6 @@ static void selwr(char *s1, const char *s2, size_t mxl) {
 }
 
 // Merge c2 into c1, keeping lid of c1
-// TODO: Continue here
 static int joincard(card *c1, const card *c2) {
 
 	int a = 0;
@@ -895,7 +894,7 @@ int main(int argc, char **argv) {
 
 	int ret = 0, optc;
 
-	setsrand();
+	srandom(time(NULL));
 	iflag(f, basename(argv[0]));
 
 	while((optc = getopt(argc, argv, "d:f:hn:v")) != -1) {

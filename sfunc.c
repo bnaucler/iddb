@@ -30,7 +30,7 @@ int randstr(char *str, const size_t len) {
 	int cslen = strlen(charset);
 	unsigned int a = 0;
 
-	for(a = 0; a < len; a++) str[a] = charset[(rand() % cslen)];
+	for(a = 0; a < len; a++) str[a] = charset[(random() % cslen)];
 	str[len] = 0;
 
 	return a;
@@ -93,13 +93,6 @@ int matoi(const char *str) {
 
 	if(lret <= INT_MAX && lret >= INT_MIN) return (int)lret;
 	else return -2;
-}
-
-// Randomize timer
-void setsrand() {
-
-	time_t t;
-	srand((unsigned) time(&t));
 }
 
 // Array to string (TODO: It's hacky. Review)
