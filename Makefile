@@ -2,7 +2,7 @@ CC = cc
 TARGET = iddb
 SOURCE = *.c
 DESTDIR = /usr/bin
-CFLAGS ?= -Wall -g -lsqlite3 -O2 -pedantic
+CFLAGS ?= -Wall -pedantic -g -lsqlite3 -O2
 
 all:
 	$(CC) $(CFLAGS) -o $(TARGET) $(SOURCE)

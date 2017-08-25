@@ -103,7 +103,7 @@ extern char **unmarshal(const char *str, char **arr);
 extern int strst(const char *str, const char *key);
 extern int randstr(char *str, const size_t len);
 extern int readline(char *prompt, char *buf, const char *def, const size_t mxl);
-extern char *robj(char *buf);
+extern char *robj(char *buf, const size_t mxl);
 extern int matoi(const char *str);
 extern void setsrand();
 extern char *atostr(char *str, char **arr, const size_t num);

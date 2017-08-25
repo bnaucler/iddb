@@ -60,15 +60,22 @@ int readline(char *prompt, char *buf, const char *def, const size_t mxl) {
 }
 
 // Return string between : and \n
-char *robj(char *buf) {
+char *robj(char *buf, const size_t mxl) {
 
-	buf = strtok(buf, ":");
-	buf = strtok(NULL, "\n");
+    char *tbuf;
 
-	if(isspace(buf[0])) memmove(buf, buf + 1, strlen(buf));
+	tbuf = strtok(buf, ":");
+	tbuf = strtok(NULL, "\n");
 
-	int p = strlen(buf) - 1;
-	while(!isalnum(buf[p])) buf[p--] = '\0';
+    if(!tbuf) {
+        strncpy(buf, "UNKNOWN", mxl);
+
+    } else {
+        int p = strlen(tbuf);
+        if(isspace(tbuf[0])) memmove(tbuf, tbuf + 1, p--);
+        while(!isalnum(tbuf[p])) tbuf[p--] = '\0';
+        strncpy(buf, tbuf, mxl);
+    }
 
 	return buf;
 }
@@ -124,7 +131,9 @@ char *esccpy(char *dest, const char *src, const char esc,
 		for(a = 0; a < len; a++) {
 			if(a + b >= mxl) return NULL;
 			if(src[a] == esc) dest[(a + b++)] = pref;
-			dest[(a + b)] = src[a];
+
+            if(src[a] == '/' || !isalnum(src[a])) dest[(a + b)] = '_';
+            else dest[(a + b)] = src[a];
 		}
 	}
 

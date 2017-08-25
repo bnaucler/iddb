@@ -100,17 +100,17 @@ static int getindex(sqlite3 *db, const int verb) {
 }
 
 // Create file name based on c->fn
-static int mkfname(const card *c, char *str, const int i, int mxlen) {
+static int mkfname(const card *c, char *str, const int i, size_t mxl) {
 
 	int a = 0;
 	char isuf[5];
 
-	if(str[0]) memset(str, 0, mxlen);
+	if(str[0]) memset(str, 0, mxl);
 
 	if(i > 99) exit(2); // TODO: Graceful exit for edge cases
-	else if(i) mxlen -= 5;
+	else if(i) mxl -= 5;
 
-	while(c->fn[a] && a < mxlen) {
+	while(c->fn[a] && a < mxl) {
 		if(isspace(c->fn[a])) str[a] = '_';
 		else str[a] = tolower(c->fn[a]);
 		a++;
@@ -118,8 +118,14 @@ static int mkfname(const card *c, char *str, const int i, int mxlen) {
 
 	if(i) {
 		snprintf(isuf, 5, "_%02d", i);
-		strncat(str, isuf, mxlen + 4);
-	} else str[++a] = 0;
+		strncat(str, isuf, mxl + 4);
+
+	} else if(a < 2) {
+        randstr(str, 20);
+
+    } else {
+        str[++a] = 0;
+    }
 
 	return a;
 }
@@ -175,20 +181,20 @@ static int readcardobj(card *c, char *buf, char *sbuf) {
 		return 1;
 
 	} else if(!strst(buf, UIDKEY)) {
-		esccpy(c->uid, robj(buf), ESCCHAR, ESCCHAR, ULEN);
+		esccpy(c->uid, robj(buf, ULEN), ESCCHAR, ESCCHAR, ULEN);
 
 	} else if(!strst(buf, FNKEY)) {
-		esccpy(c->fn, robj(buf), ESCCHAR, ESCCHAR, NALEN);
+		esccpy(c->fn, robj(buf, NALEN), ESCCHAR, ESCCHAR, NALEN);
 
 	} else if(!strst(buf, ORGKEY)) {
-		esccpy(c->org, robj(buf), ESCCHAR, ESCCHAR, ORLEN);
+		esccpy(c->org, robj(buf, ORLEN), ESCCHAR, ESCCHAR, ORLEN);
 
 	} else if(!strst(buf, EMKEY)) {
 		if(isemail(buf))
-			esccpy(c->em[c->emnum++], robj(buf), ESCCHAR, ESCCHAR, EMLEN);
+			esccpy(c->em[c->emnum++], robj(buf, EMLEN), ESCCHAR, ESCCHAR, EMLEN);
 
 	} else if(!strst(buf, PHKEY)) {
-		strncpy(sbuf, robj(buf), SBCH);
+		strncpy(sbuf, robj(buf, PHLEN), SBCH);
 		if(isphone(sbuf, PHLEN)) {
 			esccpy(c->ph[c->phnum++], formphone(buf, sbuf),
 				ESCCHAR, ESCCHAR, PHLEN);
@@ -577,7 +583,7 @@ static int rawread(card *c, const flag *f) {
 
 	while(fgets(buf, BBCH, stdin)) {
 		if(!strst(buf, FRKEY)) {
-			strncpy(nbuf, robj(buf), BBCH);
+			strncpy(nbuf, robj(buf, BBCH), BBCH);
 			int slen = strlen(nbuf);
 			for(a = 0; a < slen; a++) {
 				if(nbuf[a] == '<') b = isn = 0;
