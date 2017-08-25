@@ -27,12 +27,15 @@ Unless otherwise specified, the binary will be installed in `/usr/bin` and the d
 `iddb -f ~/.db create` - Creates or resets database ~/.db  
 `iddb import somedir/` - Imports all VCF files in somedir to database  
 `iddb new steve steve@company.com company` - Interactively add new contact  
+`iddb join 8 9` - Interactively merge cards with id 8 and 9  
 `iddb all steve` - Searches database for steve and prints all information  
 `iddb export -d .contacts/ steve` - Searches database for steve and exports VCF files to .contacts/
 
 Add option `-v` for verbose or `-vv` for debug output.
 
-## iddb & mutt
+There is no function (yet) for editing cards directly. Hence the best way to do so is to export, manually edit the `.vcf` file, delete and re-import.
+
+## iddb & [mutt](http://www.mutt.org/)
 To search your iddb address book from mutt, enter the following in your `.muttrc`:  
 ```
 set query_command= "iddb mail %s"
