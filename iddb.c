@@ -78,15 +78,18 @@ static int chops(const char *cop, size_t mxl) {
 }
 
 // Create file name based on c->fn
-static int mkfname(const card *c, char *str, const int i, size_t mxl) {
+static int mkfname(const card *c, char *str, const int i, size_t mxl,
+    const flag *f) {
 
     int a = 0;
     char isuf[5];
 
     if(str[0]) memset(str, 0, mxl);
 
-    if(i > 99) exit(2); // TODO: Graceful exit for edge cases
-    else if(i) mxl -= 5;
+    if(i > 99)
+        exit(usage("Over 99 contacts with same name in database. Aborting", f));
+    else if(i)
+        mxl -= 5;
 
     while(c->fn[a] && a < mxl) {
         if(isspace(c->fn[a])) str[a] = '_';
@@ -129,11 +132,10 @@ static int catfpath(char *path, const char *fn, const char *suf,
 // Export card to file
 static char *ecard(card *c, const flag *f, char *fpath) {
 
-    char *fn = calloc(EXPLEN, sizeof(char));
-
+    char fn[EXPLEN];
     unsigned int a = 0, i = 0;
 
-    do mkfname(c, fn, i++, EXPLEN);
+    do mkfname(c, fn, i++, EXPLEN, f);
     while(!catfpath(fpath, fn, EXPSUF, MBCH, f));
 
     FILE *cf = fopen(fpath, "w");
@@ -147,7 +149,6 @@ static char *ecard(card *c, const flag *f, char *fpath) {
     fprintf(cf, "END:VCARD\n");
 
     fclose(cf);
-    free(fn);
 
     return fpath;
 }
@@ -211,7 +212,7 @@ static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 // Create (or reset) database table
 static int ctable(sqlite3 *db) {
 
-    char *sql = calloc(DBCH, sizeof(char));
+    char sql[DBCH];
     char *err = 0;
 
     strncpy(sql, "DROP TABLE IF EXISTS id;"
@@ -220,7 +221,6 @@ static int ctable(sqlite3 *db) {
 
     int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
-    free(sql);
     return dbrc;
 }
 
@@ -239,7 +239,7 @@ static int sqlunmarshal(const char *ct, char **tarr, unsigned int *slen) {
 // Read SQL data into card
 static card *readid(card *c, const char *cn, const char *ct) {
 
-    char **tarr = calloc(EMNUM * EMLEN, sizeof(char));
+    char **tarr = calloc(EMNUM * EMLEN, sizeof(char)); // TODO
     unsigned int a = 0, slen = 0;
 
     if(!strcmp("lid", cn)) c->lid = matoi(ct);
@@ -345,7 +345,7 @@ static int searchdb(sqlite3 *db, card *c, const flag *f, char *sql,
 // Create deck of cards - init search(es)
 static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
 
-    char *sql = calloc(BBCH, sizeof(char));
+    char sql[BBCH];
     unsigned int a = 0, cci = 0;
 
     if(!str) {
@@ -362,15 +362,13 @@ static int mkdeck(sqlite3 *db, card *c, const flag *f, const char *str) {
         cci = searchdb(db, c, f, mksqlstr(f->sfl, sql, str), cci);
     }
 
-    free(sql);
     return cci;
 }
 
 // Interactively add new phone number
 static int mknewphone(card *c, char *prompt, char *buf) {
 
-    char *fphone = calloc(PHLEN, sizeof(char));
-
+    char fphone[PHLEN];
     unsigned int a = 0;
 
     for(a = 0; a < PHNUM; a++) {
@@ -383,7 +381,6 @@ static int mknewphone(card *c, char *prompt, char *buf) {
 
     c->phnum = a;
 
-    free(fphone);
     return 0;
 }
 
@@ -409,8 +406,8 @@ static int mknewemail(card *c, char *prompt, char *buf) {
 // Interactively add new card
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
-    char *buf = calloc(MBCH, sizeof(char));
-    char *prompt = calloc(MBCH, sizeof(char));
+    char buf[MBCH];
+    char prompt[MBCH];
 
     unsigned int rlrc = 0;
 
@@ -436,9 +433,6 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
         return rlrc;
     }
 
-    free(buf);
-    free(prompt);
-
     return 0;
 }
 
@@ -446,7 +440,7 @@ static int mknew(sqlite3 *db, card *c, const int verb) {
 static int delcard(sqlite3 *db, card *c, const flag *f) {
 
     int last = getindex(db, f->vfl);
-    char *sql = calloc(BBCH, sizeof(char)), *err = 0;
+    char sql[BBCH], *err = 0;
 
     snprintf(sql, BBCH, "DELETE FROM id WHERE lid=%d;", c->lid);
     int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
@@ -458,7 +452,6 @@ static int delcard(sqlite3 *db, card *c, const flag *f) {
         printcard(c, f);
     }
 
-    free(sql);
     return dbrc;
 }
 
@@ -538,7 +531,7 @@ static int orgfromemail(card *c) {
     int len = strlen(c->em[0]);
     if(len < 1) return 1;
 
-    char *p1 = calloc(len, sizeof(char));
+    char *p1 = calloc(len, sizeof(char)); // TODO
     char *p2 = p1;
 
     unsigned int a = 0, sep = len;
@@ -560,9 +553,7 @@ static int orgfromemail(card *c) {
 // Read card data from raw email dump
 static int rawread(card *c, const flag *f) {
 
-    char *buf = calloc(BBCH, sizeof(char));
-    char *nbuf = calloc(BBCH, sizeof(char));
-
+    char buf[BBCH], nbuf[BBCH];
     unsigned int a = 0, b = 0, isn = 1;
 
     while(fgets(buf, BBCH, stdin)) {
@@ -578,9 +569,6 @@ static int rawread(card *c, const flag *f) {
 
         }
     }
-
-    free(buf);
-    free(nbuf);
 
     return 0;
 }
@@ -646,7 +634,7 @@ static int exec_import(sqlite3 *db, const flag *f, char **args,
     unsigned int a = 0, ctr = 0;
     DIR *vd;
 
-    char *fpath = calloc(MBCH, sizeof(char));
+    char fpath[MBCH];
 
     for(a = 0; a < numf; a++) {
         errno = 0;
@@ -668,7 +656,6 @@ static int exec_import(sqlite3 *db, const flag *f, char **args,
 
     if(f->vfl) printf("%d File(s) imported successfully\n", ctr);
 
-    free(fpath);
     return 0;
 }
 
@@ -689,25 +676,21 @@ static int exec_join(sqlite3 *db, const flag *f, char **args,
 
     if(numarg != 2 || c1->lid == c2->lid ||
         c1->lid > last || c1->lid < 1 ||
-        c2->lid > last || c2->lid < 1) {
+        c2->lid > last || c2->lid < 1)
         return usage("Specify two ID to join cards", f);
 
-    } else {
-        joinwr(db, c1, c2, f);
-        free(c1);
-        free(c2);
-        return 0;
-    }
+    joinwr(db, c1, c2, f);
+
+    free(c1);
+    free(c2);
+    return 0;
 }
 
 // Execute export operation
 static int exec_export(sqlite3 *db, const flag *f, char **args,
     const int numarg) {
 
-    char *sstr = calloc(BBCH, sizeof(char));
-    char *tstr = calloc(BBCH, sizeof(char));
-    char *fpath = calloc(MBCH, sizeof(char));
-
+    char sstr[BBCH], tstr[BBCH], fpath[MBCH];
     card *head = calloc(1, sizeof(card));
     card *c = head;
 
@@ -722,14 +705,28 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
         if(c->next) c = c->next;
     }
 
-    free(sstr);
-    free(tstr);
-    free(fpath);
+    return 0;
+}
+
+// Wrapper for joining new card
+static int join_new(sqlite3 *db, card *c, card *cmphead, const int cci, const flag *f) {
+
+    card *cmp = cmphead;
+
+    printf("%s already exists in database. %d merge%spossible.\n",
+           c->fn, cci, cci == 1 ? " " : "s ");
+
+    while(cmp->lid) {
+        if(joinprompt(c, cmp, f)) joinwr(db, c, cmp, f);
+
+        if(cmp->next) cmp = cmp->next;
+        else break;
+    }
+
     return 0;
 }
 
 // Execute 'new' operation
-// TODO: Refactor and clean up
 static int exec_new(sqlite3 *db, const flag *f, char **args, const int anum) {
 
     int dbrc = 0, cci = 0;
@@ -742,27 +739,12 @@ static int exec_new(sqlite3 *db, const flag *f, char **args, const int anum) {
     if(mknew(db, c, f->vfl)) return 1;
     cci = nameindb(db, c, cmp, f);
 
-    if(!valcard(c)) {
-        if((dbrc = wrcard(db, c, f->op, f->vfl)))
-            printf("SQL Error #: %d\n", dbrc);
+    if(valcard(c)) return usage("Invalid contact format", f);
 
-        else if (cci) {
-            cmp = head;
-            printf("%s already exists in database. %d merge%spossible.\n",
-                   c->fn, cci, cci == 1 ? " " : "s ");
-        
-            while(cmp->lid) {
-                if(joinprompt(c, cmp, f)) joinwr(db, c, cmp, f);
-                if(cmp->next) cmp = cmp->next;
-                else break;
-            }
-        }
+    if((dbrc = wrcard(db, c, f->op, f->vfl))) printf("SQL Error #: %d\n", dbrc);
+    else if (cci) join_new(db, c, head, cci, f);
 
-        if(f->vfl) printcard(c, f);
-
-    } else {
-        return usage("Invalid contact format", f);
-    }
+    if(f->vfl) printcard(c, f);
 
     free(c);
     return 0;
@@ -784,7 +766,7 @@ static int exec_delete(sqlite3 *db, const flag *f, char **args) {
     return 0;
 }
 
-// Execute 'raw' operation TODO: better handling of return values
+// Execute 'raw' operation
 static int exec_raw(sqlite3 *db, const flag *f) {
 
     card *c = calloc(1, sizeof(card));
@@ -808,8 +790,7 @@ static int exec_raw(sqlite3 *db, const flag *f) {
 // Execute search operations (all, phone & mail)
 static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg) {
 
-    char *sstr = calloc(BBCH, sizeof(char));
-    char *tstr = calloc(BBCH, sizeof(char));
+    char sstr[BBCH], tstr[BBCH];
 
     card *head = calloc(1, sizeof(card));
     card *ccard = head;
@@ -824,8 +805,6 @@ static int exec_search(sqlite3 *db, const flag *f, char **args, const int numarg
         ccard = ccard->next;
     }
 
-    free(sstr);
-    free(tstr);
     return 0;
 }
 
@@ -879,7 +858,7 @@ static void iflag(flag *f, const char *cmd) {
 
 int main(int argc, char **argv) {
 
-    char *dbpath = calloc(MBCH, sizeof(char));
+    char dbpath[MBCH];
 
     flag *f = calloc(1, sizeof(flag));
 
@@ -961,7 +940,6 @@ int main(int argc, char **argv) {
     ret = execute(db, f, dbpath, argc, argv);
 
     // Graceful exit
-    free(dbpath);
     free(f);
     sqlite3_close(db);
     return ret;

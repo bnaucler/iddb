@@ -4,7 +4,12 @@ A minimalist identity database to manage your contacts.
 ## Written by
 Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 
-Compiled and tested on Arch Linux 4.9 (amd64) and MacOS Sierra, but should work pretty much anywhere.
+Compiled and tested on:
+* Arch Linux 4.9 (amd64)
+* Arch Linux ARM (Raspberry Pi)
+* MacOS Sierra
+
+However; the code is portable and should work pretty much anywhere. Please raise an issue if you encounter compilation problems.
 
 ## Why iddb?
 iddb is lightweight, portable, lightning fast and requiring minimal storage space.  
