@@ -1,12 +1,12 @@
 /*
  *
- *		iddb - Identity database / VCF parser
- *		https://github.com/bnaucler/iddb
+ *        iddb - Identity database / VCF parser
+ *        https://github.com/bnaucler/iddb
  *
- *		Written by: Björn W Nauclér 2017
- *		License: MIT
+ *        Written by: Björn W Nauclér 2017
+ *        License: MIT
  *
- *		See README.md for more information
+ *        See README.md for more information
  *
  */
 
@@ -72,27 +72,27 @@ typedef enum op {create, delete, import, join, export, help, phone, raw, mail, n
 typedef enum svar {lid, uid, fn, org, em, ph} svar;
 
 typedef struct card {
-	int lid;
-	char uid[ULEN];
-	char fn[NALEN];
-	char org[ORLEN];
-	char ph[PHNUM][PHLEN];
-	char em[EMNUM][EMLEN];
-	unsigned int phnum;
-	unsigned int emnum;
-	struct card *next;
+    int lid;
+    char uid[ULEN];
+    char fn[NALEN];
+    char org[ORLEN];
+    char ph[PHNUM][PHLEN];
+    char em[EMNUM][EMLEN];
+    unsigned int phnum;
+    unsigned int emnum;
+    struct card *next;
 } card;
 
 typedef struct flag {
-	int op;
-	int mxnum;
-	int vfl;
-	int sfl;
+    int op;
+    int mxnum;
+    int vfl;
+    int sfl;
     char cmd[CMDLEN];
-	char dfl[MBCH];
-	char nfl[NALEN];
-	char pfl[PHLEN];
-	char efl[EMLEN];
+    char dfl[MBCH];
+    char nfl[NALEN];
+    char pfl[PHLEN];
+    char efl[EMLEN];
 } flag;
 
 // Forward declarations - marshal.c
@@ -108,9 +108,9 @@ extern int matoi(const char *str);
 extern void setsrand();
 extern char *atostr(char *str, char **arr, const size_t num);
 extern char *esccpy(char *dest, const char *src, const char esc,
-	const char pref, size_t mxl);
+    const char pref, size_t mxl);
 extern int mkpath(char *out, char *dirname, const char *fname,
-	const char div, size_t mxl);
+    const char div, size_t mxl);
 extern int isemail(const char *str);
 extern int isphone(const char *str, const int mxl);
 extern char *formphone(char *output, const char *input);
