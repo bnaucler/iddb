@@ -237,8 +237,9 @@ static int ctable(sqlite3 *db) {
     char *err = 0;
 
     strncpy(sql, "DROP TABLE IF EXISTS id;"
-        "CREATE TABLE id(lid INT, uid TEXT, fn TEXT,"
-        " org TEXT, ph TEXT, em TEXT);", DBCH);
+                 "CREATE TABLE id(lid INT, uid TEXT, fn TEXT,"
+                 " org TEXT, ph TEXT, em TEXT);", DBCH);
+
     int dbrc = sqlite3_exec(db, sql, 0, 0, &err);
 
     free(sql);
@@ -648,6 +649,51 @@ static int joincard(card *c1, const card *c2) {
     return 0;
 }
 
+// Check if name is already in db
+static int nameindb(sqlite3 *db, const card *c, card *cmp, const flag *f) {
+
+    char sql[BBCH];
+    snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", c->fn);
+    return searchdb(db, cmp, f, sql, 0);
+}
+
+// Prompt user to merge cards
+static int joinprompt(card *c1, card *c2, const flag *f) {
+
+    char ans[3];
+
+    printcard(c1, f);
+    printcard(c2, f);
+
+    readline("Merge (y/n)", ans, "n", 3);
+    
+    if(tolower(ans[0]) == 'y') return 1;
+    else return 0;
+}
+
+// Wrapper for joincard()
+static int joinwr(sqlite3 *db, card *c1, card *c2, const flag *f) {
+
+    char sql[BBCH];
+
+    if(!c1->fn[0]) {
+        snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c1->lid);
+        searchdb(db, c1, f, sql, 0);
+    }
+
+    if(!c2->fn[0]) {
+        snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c2->lid);
+        searchdb(db, c2, f, sql, 0);
+    }
+
+    joincard(c1, c2);
+    delcard(db, c1, f);
+    delcard(db, c2, f);
+    wrcard(db, c1, f->op, f->vfl);
+
+    return 0;
+}
+
 // Execute create operation
 static int exec_create(sqlite3 *db, const flag *f, const char *dbpath) {
 
@@ -687,25 +733,6 @@ static int exec_import(sqlite3 *db, const flag *f, char **args,
     if(f->vfl) printf("%d File(s) imported successfully\n", ctr);
 
     free(fpath);
-    return 0;
-}
-
-// Wrapper for joincard()
-static int joinwr(sqlite3 *db, card *c1, card *c2, const flag *f) {
-
-    char *sql = calloc(BBCH, sizeof(char));
-
-    snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c1->lid);
-    searchdb(db, c1, f, sql, 0);
-    snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c2->lid);
-    searchdb(db, c2, f, sql, 0);
-
-    joincard(c1, c2);
-    delcard(db, c1, f);
-    delcard(db, c2, f);
-    wrcard(db, c1, f->op, f->vfl);
-
-    free(sql);
     return 0;
 }
 
@@ -766,45 +793,37 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
     return 0;
 }
 
-// Search if name is already in db
-static int nameindb(sqlite3 *db, card *c, const flag *f) {
-
-    int cci = 0;
-    char *sql = calloc(BBCH, sizeof(char));
-    card *cmp = calloc(1, sizeof(card));
-
-    snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", c->fn);
-    searchdb(db, cmp, f, sql, cci);
-
-    while(cmp->lid) {
-        // TODO:
-        // print both cards
-        // prompt to merge
-        // call joinwr() here or in parent?
-        // allocate cmp in parent?
-        if(cmp->next) cmp = cmp->next;
-        else break;
-    }
-
-    return 0;
-}
-
 // Execute 'new' operation
+// TODO: Refactor and clean up
 static int exec_new(sqlite3 *db, const flag *f, char **args, const int anum) {
 
-    int dbrc = 0;
+    int dbrc = 0, cci = 0;
 
     card *c = calloc(1, sizeof(card));
+    card *cmp = calloc(1, sizeof(card)), *head = cmp;
+
     c = setcarddef(c, args, anum);
 
     if(mknew(db, c, f->vfl)) return 1;
-
+    cci = nameindb(db, c, cmp, f);
 
     if(!valcard(c)) {
         if((dbrc = wrcard(db, c, f->op, f->vfl)))
             printf("SQL Error #: %d\n", dbrc);
-        else if(f->vfl)
-            printcard(c, f);
+
+        else if (cci) {
+            cmp = head;
+            printf("%s already exists in database. %d merge%spossible.\n",
+                   c->fn, cci, cci == 1 ? " " : "s ");
+        
+            while(cmp->lid) {
+                if(joinprompt(c, cmp, f)) joinwr(db, c, cmp, f);
+                if(cmp->next) cmp = cmp->next;
+                else break;
+            }
+        }
+
+        if(f->vfl) printcard(c, f);
 
     } else {
         return usage("Invalid contact format", f);
