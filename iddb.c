@@ -465,19 +465,25 @@ static int delcard(sqlite3 *db, card *c, const flag *f) {
 // Wrapper for icard()
 static int iloop(sqlite3 *db, const flag *f, const char *fname) {
 
+    int dbrc = 0;
+
     FILE *vf = fopen(fname, "r");
     card *c = calloc(1, sizeof(card));
 
-    int dbrc = 0;
+    if(vf) {
+        icard(c, vf, db, f->vfl);
+        if(!valcard(c)) dbrc = wrcard(db, c, f->op, f->vfl);
+        else return 1;
 
-    icard(c, vf, db, f->vfl);
-    if(!valcard(c)) dbrc = wrcard(db, c, f->op, f->vfl);
-    else return 1;
+        if(dbrc) return dbrc;
+        else if(f->vfl) printcard(c, f);
 
-    if(dbrc) return dbrc;
-    else if(f->vfl) printcard(c, f);
+        fclose(vf);
 
-    fclose(vf);
+    } else {
+        fprintf(stderr, "Cannot open file %s for reading\n", fname);
+    }
+
     free(c);
     return 0;
 }
@@ -667,8 +673,7 @@ static int exec_import(sqlite3 *db, const flag *f, char **args,
 }
 
 // Execute join operation
-// TODO: refactor and clean up;
-// transform to take linked list and extend to merge multiple cards
+// TODO: transform to take linked list and extend to merge multiple cards
 static int exec_join(sqlite3 *db, const flag *f, char **args,
     const int numarg) {
 
@@ -685,7 +690,7 @@ static int exec_join(sqlite3 *db, const flag *f, char **args,
     if(numarg != 2 || c1->lid == c2->lid ||
         c1->lid > last || c1->lid < 1 ||
         c2->lid > last || c2->lid < 1) {
-        return usage("Specify two LID to join cards", f);
+        return usage("Specify two ID to join cards", f);
 
     } else {
         joinwr(db, c1, c2, f);
