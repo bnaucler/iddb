@@ -269,3 +269,28 @@ int inarr(const char *str, const size_t mxl,
 
     return 1;
 }
+
+// Interactively select string
+int selstr(const char *s1, const char *s2) {
+
+    char ans[3];
+
+    printf("1: %s\n", s1);
+    printf("2: %s\n", s2);
+
+    if(readline("Keep (1/2)", ans, "1", 3)) return 1;
+    else return matoi(ans);
+}
+
+// Loop wrapper for selstr
+void selwr(char *s1, const char *s2, size_t mxl) {
+
+    int rc = 0;
+
+    if(!strncmp(s1, s2, mxl)) return;
+
+    do rc = selstr(s1, s2);
+    while (rc != 1 && rc != 2);
+
+    if(rc == 2) strncpy(s1, s2, mxl);
+}

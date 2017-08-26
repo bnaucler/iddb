@@ -113,3 +113,48 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
     return dbrc;
 }
+
+// Fetch index size
+int getindex(sqlite3 *db, const int verb) {
+
+    int ret = 0;
+    unsigned int a = 0;
+
+    char *sql = calloc(BBCH, sizeof(char));
+    sqlite3_stmt *stmt;
+
+    snprintf(sql, BBCH, "SELECT COUNT(*) FROM id;");
+
+    int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
+    if (verb > 1) printf("Query: %s\n", sql);
+
+    while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
+        if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
+    }
+
+    free(sql);
+    return ret;
+}
+
+// Merge c2 into c1, keeping lid of c1
+int joincard(card *c1, const card *c2) {
+
+    int a = 0;
+
+    selwr(c1->fn, c2->fn, NALEN);
+    selwr(c1->org, c2->org, ORLEN);
+
+    if(!c1->uid[0] && c2->uid[0]) strncpy(c1->uid, c2->uid, ULEN);
+
+    for(a = 0; a < c2->emnum; a++) {
+        if(inarr(c2->em[a], EMLEN, c1->em, c1->emnum))
+            strncpy(c1->em[c1->emnum++], c2->em[a], EMLEN);
+    }
+
+    for(a = 0; a < c2->phnum; a++) {
+        if(inarr(c2->ph[a], PHLEN, c1->ph, c1->phnum))
+            strncpy(c1->ph[c1->phnum++], c2->ph[a], PHLEN);
+    }
+
+    return 0;
+}

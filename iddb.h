@@ -118,6 +118,8 @@ extern char *remchar(char *str, const char ch);
 extern char *remtchar(char *str, const char ch);
 extern int inarr(const char *str, const size_t mxl,
     char arr[][mxl], const size_t asz);
+extern int selstr(const char *s1, const char *s2);
+extern void selwr(char *s1, const char *s2, size_t mxl);
 
 // Forward declarations - cfunc.c
 extern int valcard(card *c);
@@ -125,5 +127,7 @@ extern int mvcard(sqlite3 *db, int plid, int nlid);
 extern int cmpcard(const card *c1, const card *c2);
 extern int printcard(card *c, const flag *f);
 extern int wrcard(sqlite3 *db, card *c, const int op, const int verb);
+extern int getindex(sqlite3 *db, const int verb);
+extern int joincard(card *c1, const card *c2);
 
 #endif

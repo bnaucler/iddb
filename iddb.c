@@ -77,28 +77,6 @@ static int chops(const char *cop, size_t mxl) {
     return -1;
 }
 
-// Fetch index size
-static int getindex(sqlite3 *db, const int verb) {
-
-    int ret = 0;
-    unsigned int a = 0;
-
-    char *sql = calloc(BBCH, sizeof(char));
-    sqlite3_stmt *stmt;
-
-    snprintf(sql, BBCH, "SELECT COUNT(*) FROM id;");
-
-    int dbop = sqlite3_prepare_v2(db, sql, -1, &stmt, 0);
-    if (verb > 1) printf("Query: %s\n", sql);
-
-    while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
-        if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
-    }
-
-    free(sql);
-    return ret;
-}
-
 // Create file name based on c->fn
 static int mkfname(const card *c, char *str, const int i, size_t mxl) {
 
@@ -597,54 +575,6 @@ static int rawread(card *c, const flag *f) {
 
     free(buf);
     free(nbuf);
-
-    return 0;
-}
-
-// Interactively select string
-static int selstr(const char *s1, const char *s2) {
-
-    char ans[3];
-
-    printf("1: %s\n", s1);
-    printf("2: %s\n", s2);
-
-    if(readline("Keep (1/2)", ans, "1", 3)) return 1;
-    else return matoi(ans);
-}
-
-// Loop wrapper for selstr
-static void selwr(char *s1, const char *s2, size_t mxl) {
-
-    int rc = 0;
-
-    if(!strncmp(s1, s2, mxl)) return;
-
-    do rc = selstr(s1, s2);
-    while (rc != 1 && rc != 2);
-
-    if(rc == 2) strncpy(s1, s2, mxl);
-}
-
-// Merge c2 into c1, keeping lid of c1
-static int joincard(card *c1, const card *c2) {
-
-    int a = 0;
-
-    selwr(c1->fn, c2->fn, NALEN);
-    selwr(c1->org, c2->org, ORLEN);
-
-    if(!c1->uid[0] && c2->uid[0]) strncpy(c1->uid, c2->uid, ULEN);
-
-    for(a = 0; a < c2->emnum; a++) {
-        if(inarr(c2->em[a], EMLEN, c1->em, c1->emnum))
-            strncpy(c1->em[c1->emnum++], c2->em[a], EMLEN);
-    }
-
-    for(a = 0; a < c2->phnum; a++) {
-        if(inarr(c2->ph[a], PHLEN, c1->ph, c1->phnum))
-            strncpy(c1->ph[c1->phnum++], c2->ph[a], PHLEN);
-    }
 
     return 0;
 }
