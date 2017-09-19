@@ -265,27 +265,27 @@ static char *mksqlstr(int svar, char *sql, const char *str) {
 
     switch(svar) {
         case lid:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", matoi(str));
+        snprintf(sql, BBCH, "%slid=%d;", SQLSPREF, matoi(str));
         break;
 
         case uid:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE uid LIKE '%%%s%%';", str);
+        snprintf(sql, BBCH, "%suid LIKE '%%%s%%';", SQLSPREF, str);
         break;
 
         case fn:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", str);
+        snprintf(sql, BBCH, "%sfn LIKE '%%%s%%';", SQLSPREF, str);
         break;
 
         case org:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE org LIKE '%%%s%%';", str);
+        snprintf(sql, BBCH, "%sorg LIKE '%%%s%%';", SQLSPREF, str);
         break;
 
         case ph:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE ph LIKE '%%%s%%';", str);
+        snprintf(sql, BBCH, "%sph LIKE '%%%s%%';", SQLSPREF, str);
         break;
 
         case em:
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE em LIKE '%%%s%%';", str);
+        snprintf(sql, BBCH, "%sem LIKE '%%%s%%';", SQLSPREF, str);
         break;
 
     }
@@ -406,8 +406,7 @@ static int mknewemail(card *c, char *prompt, char *buf) {
 // Interactively add new card
 static int mknew(sqlite3 *db, card *c, const int verb) {
 
-    char buf[MBCH];
-    char prompt[MBCH];
+    char buf[MBCH], prompt[MBCH];
 
     unsigned int rlrc = 0;
 
@@ -531,7 +530,7 @@ static int orgfromemail(card *c) {
     int len = strlen(c->em[0]);
     if(len < 1) return 1;
 
-    char *p1 = calloc(len, sizeof(char)); // TODO
+    char p1[len];
     char *p2 = p1;
 
     unsigned int a = 0, sep = len;
@@ -546,7 +545,6 @@ static int orgfromemail(card *c) {
     p2[0] = toupper(p2[0]);
     strncpy(c->org, p2, ORLEN);
 
-    free(p1);
     return 0;
 }
 
@@ -577,7 +575,7 @@ static int rawread(card *c, const flag *f) {
 static int nameindb(sqlite3 *db, const card *c, card *cmp, const flag *f) {
 
     char sql[BBCH];
-    snprintf(sql, BBCH, "SELECT * FROM id WHERE fn LIKE '%%%s%%';", c->fn);
+    snprintf(sql, BBCH, "%sfn LIKE '%%%s%%';", SQLSPREF, c->fn);
     return searchdb(db, cmp, f, sql, 0);
 }
 
@@ -601,12 +599,12 @@ static int joinwr(sqlite3 *db, card *c1, card *c2, const flag *f) {
     char sql[BBCH];
 
     if(!c1->fn[0]) {
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c1->lid);
+        snprintf(sql, BBCH, "%slid=%d;", SQLSPREF, c1->lid);
         searchdb(db, c1, f, sql, 0);
     }
 
     if(!c2->fn[0]) {
-        snprintf(sql, BBCH, "SELECT * FROM id WHERE lid=%d;", c2->lid);
+        snprintf(sql, BBCH, "%slid=%d;", SQLSPREF, c2->lid);
         searchdb(db, c2, f, sql, 0);
     }
 
@@ -614,6 +612,24 @@ static int joinwr(sqlite3 *db, card *c1, card *c2, const flag *f) {
     delcard(db, c1, f);
     delcard(db, c2, f);
     wrcard(db, c1, f->op, f->vfl);
+
+    return 0;
+}
+
+// Wrapper for joining new card
+static int join_new(sqlite3 *db, card *c, card *cmphead, const int cci, const flag *f) {
+
+    card *cmp = cmphead;
+
+    printf("%s already exists in database. %d merge%spossible.\n",
+           c->fn, cci, cci == 1 ? " " : "s ");
+
+    while(cmp->lid) {
+        if(joinprompt(c, cmp, f)) joinwr(db, c, cmp, f);
+
+        if(cmp->next) cmp = cmp->next;
+        else break;
+    }
 
     return 0;
 }
@@ -703,24 +719,6 @@ static int exec_export(sqlite3 *db, const flag *f, char **args,
         ecard(c, f, fpath);
         if(f->vfl) printf("%s exported as: %s\n", c->fn, fpath);
         if(c->next) c = c->next;
-    }
-
-    return 0;
-}
-
-// Wrapper for joining new card
-static int join_new(sqlite3 *db, card *c, card *cmphead, const int cci, const flag *f) {
-
-    card *cmp = cmphead;
-
-    printf("%s already exists in database. %d merge%spossible.\n",
-           c->fn, cci, cci == 1 ? " " : "s ");
-
-    while(cmp->lid) {
-        if(joinprompt(c, cmp, f)) joinwr(db, c, cmp, f);
-
-        if(cmp->next) cmp = cmp->next;
-        else break;
     }
 
     return 0;
@@ -859,15 +857,14 @@ static void iflag(flag *f, const char *cmd) {
 int main(int argc, char **argv) {
 
     char dbpath[MBCH];
+    int ret = 0, optc;
 
     flag *f = calloc(1, sizeof(flag));
+    iflag(f, basename(argv[0]));
 
     sqlite3 *db;
 
-    int ret = 0, optc;
-
     srandom(time(NULL));
-    iflag(f, basename(argv[0]));
 
     while((optc = getopt(argc, argv, "d:f:hn:v")) != -1) {
         switch(optc) {
@@ -907,7 +904,7 @@ int main(int argc, char **argv) {
     if(sqlite3_open(dbpath, &db)) errno = ENOENT;
     else errno = 0;
 
-    // Dump DB if no argument has bee
+    // Dump DB if no argument has been given
      if(argc <= optind && !errno) {
         f->op = all;
         ret = exec_search(db, f, NULL, 0);
@@ -925,10 +922,7 @@ int main(int argc, char **argv) {
     // Set and verify operation
     f->op = chops(argv[optind], SBCH);
     if(f->op < 0) errno = EINVAL;
-    if(f->op == delete) f->sfl = lid;
-    if(f->op == join) {
-        f->sfl = lid;
-    }
+    else if(f->op == delete || f->op == join) f->sfl = lid;
 
     if(errno) return usage("", f);
 

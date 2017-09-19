@@ -50,6 +50,8 @@
 #define EXPLEN 30
 #define EXPSUF ".vcf"
 
+#define SQLSPREF "SELECT * FROM ID WHERE "
+
 #define STARTKEY "BEGIN:VCARD"
 #define STOPKEY "END:VCARD"
 #define UIDKEY "UID"

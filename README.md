@@ -6,7 +6,7 @@ Björn Westerberg Nauclér (mail@bnaucler.se) 2017
 
 Compiled and tested on:
 * Arch Linux 4.9 (amd64)
-* Arch Linux ARM (Raspberry Pi)
+* Arch Linux ARM 4.9 (Raspberry Pi)
 * MacOS Sierra
 
 However; the code is portable and should work pretty much anywhere. Please raise an issue if you encounter compilation problems.
