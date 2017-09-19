@@ -186,8 +186,7 @@ static int readcardobj(card *c, char *buf, char *sbuf) {
 // Import card to struct
 static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
 
-    char *buf = malloc(MBCH);
-    char *sbuf = malloc(SBCH);
+    char buf[MBCH], sbuf[MBCH];
     int verc = 0, cnum = 1;
 
     card *c = head;
@@ -202,9 +201,6 @@ static card *icard(card *head, FILE *f, sqlite3 *db, const int verb) {
             verc = 0;
         }
     }
-
-    free(buf);
-    free(sbuf);
 
     return head;
 }

@@ -13,21 +13,17 @@
 
 // Return 0 if card has LID and FN, else return 1
 int valcard(card *c) {
-
-    if(c->lid > 0 && c->fn[0]) return 0;
-    else return 1;
+    return (c->lid > 0 && c->fn[0]) ? 0 : 1;
 }
 
 // Change card lid from plid to nlid
 int mvcard(sqlite3 *db, int plid, int nlid) {
 
     char sql[BBCH];
-    char *err = 0;
 
     snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
-    int dbrc = sqlite3_exec(db, sql, NULL, NULL, &err);
 
-    return dbrc;
+    return sqlite3_exec(db, sql, NULL, NULL, NULL);
 }
 
 // Return 0 if c1 and c2 are identical
@@ -43,7 +39,7 @@ int cmpcard(const card *c1, const card *c2) {
     return 0;
 }
 
-// Print card to stdout TODO: Avoid duplicates at op phone and mail
+// Print card to stdout
 int printcard(card *c, const flag *f) {
 
     unsigned int a = 0;
@@ -84,11 +80,7 @@ int printcard(card *c, const flag *f) {
 // Write struct to DB
 int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
-    char sql[BBCH];
-    char pbuf[(PHNUM * PHLEN)];
-    char mbuf[(EMNUM * EMLEN)];
-
-    char *err = 0;
+    char sql[BBCH], pbuf[(PHNUM * PHLEN)], mbuf[(EMNUM * EMLEN)];
     int dbrc = 0;
 
     while(c->lid) {
@@ -100,7 +92,7 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
         if(verb > 1) printf("Query: %s\n", sql);
 
-        dbrc = sqlite3_exec(db, sql, 0, 0, &err);
+        dbrc = sqlite3_exec(db, sql, 0, 0, NULL);
 
         if(c->next) c = c->next;
         else break;
@@ -113,7 +105,6 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 int getindex(sqlite3 *db, const int verb) {
 
     int ret = 0;
-    unsigned int a = 0;
 
     char sql[BBCH];
     sqlite3_stmt *stmt;
@@ -124,7 +115,7 @@ int getindex(sqlite3 *db, const int verb) {
     if (verb > 1) printf("Query: %s\n", sql);
 
     while((dbop = sqlite3_step(stmt)) != SQLITE_DONE) {
-        if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
+        if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, 0));
     }
 
     return ret;
@@ -133,7 +124,7 @@ int getindex(sqlite3 *db, const int verb) {
 // Merge c2 into c1, keeping lid of c1
 int joincard(card *c1, const card *c2) {
 
-    int a = 0;
+    unsigned int a = 0;
 
     selwr(c1->fn, c2->fn, NALEN);
     selwr(c1->org, c2->org, ORLEN);

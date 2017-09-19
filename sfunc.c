@@ -15,10 +15,8 @@
 // Return 0 if string starts with key
 int strst(const char *str, const char *key) {
 
-    size_t klen = strlen(key);
-    unsigned int a = 0;
-
-    for(a = 0; a < klen; a++) { if(toupper(str[a]) != key[a]) return 1; }
+    do { if(*str != *key) return 1; 
+    } while(*++str && *++key);
 
     return 0;
 }
@@ -98,6 +96,11 @@ int matoi(const char *str) {
 char *atostr(char *str, char **arr, const size_t num) {
 
     unsigned int a = 0, lsz = BBCH;
+
+    if(num == 1) {
+        strncpy(str, arr[0], BBCH);
+        return str;
+    }
 
     for(a = 0; a < num; a++) {
         strncat(str, arr[a], lsz);
