@@ -21,13 +21,12 @@ int valcard(card *c) {
 // Change card lid from plid to nlid
 int mvcard(sqlite3 *db, int plid, int nlid) {
 
-    char *sql = calloc(BBCH, sizeof(char));
+    char sql[BBCH];
     char *err = 0;
 
     snprintf(sql, BBCH, "UPDATE id SET lid=%d WHERE lid=%d;", nlid, plid);
     int dbrc = sqlite3_exec(db, sql, NULL, NULL, &err);
 
-    free(sql);
     return dbrc;
 }
 
@@ -85,9 +84,9 @@ int printcard(card *c, const flag *f) {
 // Write struct to DB
 int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
 
-    char *sql = calloc(BBCH, sizeof(char));
-    char *pbuf = calloc(PHNUM * PHLEN, sizeof(char));
-    char *mbuf = calloc(EMNUM * EMLEN, sizeof(char));
+    char sql[BBCH];
+    char pbuf[(PHNUM * PHLEN)];
+    char mbuf[(EMNUM * EMLEN)];
 
     char *err = 0;
     int dbrc = 0;
@@ -107,10 +106,6 @@ int wrcard(sqlite3 *db, card *c, const int op, const int verb) {
         else break;
     }
 
-    free(sql);
-    free(pbuf);
-    free(mbuf);
-
     return dbrc;
 }
 
@@ -120,7 +115,7 @@ int getindex(sqlite3 *db, const int verb) {
     int ret = 0;
     unsigned int a = 0;
 
-    char *sql = calloc(BBCH, sizeof(char));
+    char sql[BBCH];
     sqlite3_stmt *stmt;
 
     snprintf(sql, BBCH, "SELECT COUNT(*) FROM id;");
@@ -132,7 +127,6 @@ int getindex(sqlite3 *db, const int verb) {
         if(dbop == SQLITE_ROW) ret = matoi((char*)sqlite3_column_text(stmt, a));
     }
 
-    free(sql);
     return ret;
 }
 
